@@ -1,41 +1,49 @@
-    // / server.js
+        // =================================================================
+        // ||                       DEPENDÊNCIAS                        ||
+        // =================================================================
+        const express = require('express');
+        const { Pool } = require('pg'); 
+        const cors = require('cors');
+        const bcrypt = require('bcrypt');
+        const { v4: uuidv4 } = require('uuid');
+        const app = express();
+        const port = 3001; 
+        // =================================================================
+        // ||                       MIDDLEWARES                         ||
+        // =================================================================
+        app.use(cors());
+        app.use(express.json());
 
-    // =================================================================
-    // ||                       DEPENDÊNCIAS                        ||
-    // =================================================================
-    const express = require('express');
-    const mysql = require('mysql2');
-    const cors = require('cors');
-    const bcrypt = require('bcrypt'); // <-- Importante para segurança de senhas
-    const { v4: uuidv4 } = require('uuid');
-    const app = express();
-    const port = 3001;
+        // =================================================================
+        // ||                  CONFIGURAÇÃO DO BANCO DE DADOS             ||
+        // =================================================================
+     
+        const pool = new Pool({
+            // Ele busca a string de conexão da variável de ambiente DATABASE_URL.
+            connectionString: process.env.DATABASE_URL, 
+            // O Render exige conexões seguras (SSL), então adicionamos esta configuração.
+            ssl: {
+                rejectUnauthorized: false
+            }
+        });
 
-    // =================================================================
-    // ||                       MIDDLEWARES                         ||
-    // =================================================================
-    app.use(cors());
-    app.use(express.json());
+        // ALTERAÇÃO 3: O teste de conexão é feito com uma query simples.
+        pool.query('SELECT NOW()', (err, res) => {
+            if (err) {
+                console.error('Erro ao conectar ao banco de dados PostgreSQL:', err);
+            } else {
+                // Mudamos a mensagem para refletir que agora é PostgreSQL.
+                console.log('Conectado com sucesso ao banco de dados PostgreSQL.');
+            }
+        });
 
-    // =================================================================
-    // ||                  CONFIGURAÇÃO DO BANCO DE DADOS             ||
-    // =================================================================
-    const db = mysql.createConnection({
-        host: process.env.DB_HOST,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_DATABASE,
-        port: process.env.DB_PORT
-    });
+        app.listen(port, () => {
+            console.log(`Servidor rodando na porta ${port}`);
+        });
 
-    db.connect(err => {
-        if (err) {
-            console.error('Erro ao conectar ao banco de dados:', err);
-            return;
-        }
-        console.log('Conectado com sucesso ao banco de dados MySQL.');
-    });
-
+        // IMPORTANTE: Exporte o 'pool' se você precisar usá-lo em outros arquivos.
+        // Se todo o seu código estiver neste arquivo, você não precisa desta linha.
+        module.exports = pool;
     // =================================================================
     // ||                      ROTA DE LOGIN (SEGURA)                 ||
     // =================================================================
@@ -1427,7 +1435,7 @@ app.get('/pedidos-concluidos', (req, res) => {
 });
 
 
-
+    module.exports = pool;
 
     // =================================================================
     // ||                       INICIA O SERVIDOR                     ||
