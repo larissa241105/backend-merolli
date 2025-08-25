@@ -12,7 +12,7 @@
         // ||                       MIDDLEWARES                         ||
         // =================================================================
         const corsOptions = {
-        origin: 'https://merollisoft.com.br/'
+        origin: 'https://merollisoft.com.br'
         };
 
         app.use(cors(corsOptions));
