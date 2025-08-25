@@ -4,6 +4,7 @@
         const express = require('express');
         const { Pool } = require('pg'); 
         const cors = require('cors');
+        const mysql = require('mysql2');
         const bcrypt = require('bcrypt');
         const { v4: uuidv4 } = require('uuid');
         const app = express();
@@ -21,7 +22,9 @@
         // =================================================================
         // ||                  CONFIGURAÇÃO DO BANCO DE DADOS             ||
         // =================================================================
-     
+
+
+
         const pool = new Pool({
             connectionString: process.env.DATABASE_URL, 
             ssl: {
@@ -33,7 +36,6 @@
             if (err) {
                 console.error('Erro ao conectar ao banco de dados PostgreSQL:', err);
             } else {
-                // Mudamos a mensagem para refletir que agora é PostgreSQL.
                 console.log('Conectado com sucesso ao banco de dados PostgreSQL.');
             }
         });
@@ -42,8 +44,7 @@
             console.log(`Servidor rodando na porta ${port}`);
         });
 
-      
-        module.exports = pool;
+
     // =================================================================
     // ||                      ROTA DE LOGIN (SEGURA)                 ||
     // =================================================================
@@ -55,9 +56,9 @@
         }
 
         const cpfLimpo = usuario.replace(/\D/g, '');
-        const query = 'SELECT * FROM analista WHERE cpf = ?';
+        const query = 'SELECT * FROM analista WHERE cpf = $1';
 
-        db.query(query, [cpfLimpo], async (err, results) => {
+        pool.query(query, [cpfLimpo], async (err, results) => {
             if (err) {
                 console.error("Erro ao buscar analista:", err);
                 return res.status(500).json({ message: 'Erro interno no servidor.' });
@@ -101,10 +102,10 @@
 
         try {
             const senhaHash = await bcrypt.hash(senha, 10);
-            const query = 'INSERT INTO auxiliar (cpf, nome, data_nascimento, senha) VALUES (?, ?, ?, ?)';
+            const query = 'INSERT INTO auxiliar (cpf, nome, data_nascimento, senha) VALUES ($1, $2, $3, $4)';
             const values = [cpf.replace(/\D/g, ''), nome, data_nascimento, senhaHash];
 
-            db.query(query, values, (err, result) => {
+            pool.query(query, values, (err, result) => {
                 if (err) {
                     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'CPF já cadastrado.' });
                     return res.status(500).json({ message: 'Erro interno ao cadastrar auxiliar.' });
@@ -123,10 +124,10 @@
 
         try {
             const senhaHash = await bcrypt.hash(senha, 10);
-            const query = 'INSERT INTO analista (cpf, nome, data_nascimento, senha) VALUES (?, ?, ?, ?)';
+            const query = 'INSERT INTO analista (cpf, nome, data_nascimento, senha) VALUES ($1, $2, $3, $4)';
             const values = [cpf.replace(/\D/g, ''), nome, data_nascimento, senhaHash];
 
-            db.query(query, values, (err, result) => {
+            pool.query(query, values, (err, result) => {
                 if (err) {
                     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'CPF já cadastrado.' });
                     return res.status(500).json({ message: 'Erro interno ao cadastrar analista.' });
@@ -145,10 +146,10 @@
 
         try {
             const senhaHash = await bcrypt.hash(senha, 10);
-            const query = 'INSERT INTO cliente (cnpj, razao_social, nome_fantasia, endereco, unidade, nome_responsavel, contato_responsavel, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+            const query = 'INSERT INTO cliente (cnpj, razao_social, nome_fantasia, endereco, unidade, nome_responsavel, contato_responsavel, senha) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
             const values = [cnpj.replace(/\D/g, ''), razao_social, nome_fantasia, endereco, unidade, nome_responsavel, contato_responsavel, senhaHash];
 
-            db.query(query, values, (err, result) => {
+            pool.query(query, values, (err, result) => {
                 if (err) {
                     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'Este CNPJ já está cadastrado.' });
                     return res.status(500).json({ message: 'Erro ao cadastrar cliente.' });
@@ -165,8 +166,8 @@
 
     app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         const { cnpj } = req.params;
-        const query = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = ?';
-        db.query(query, [cnpj.replace(/\D/g, '')], (err, results) => {
+        const query = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = $1';
+        pool.query(query, [cnpj.replace(/\D/g, '')], (err, results) => {
             if (err) return res.status(500).json({ message: 'Erro no servidor.' });
             if (results.length > 0) return res.status(200).json(results[0]);
             res.status(404).json({ message: 'Cliente não encontrado.' });
@@ -176,7 +177,7 @@
     app.get('/api/auxiliares', (req, res) => {
     const query = 'SELECT id, nome FROM auxiliar ORDER BY nome ASC'; 
 
-    db.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error('Erro ao buscar auxiliares:', err);
             return res.status(500).json({ message: 'Erro interno ao buscar dados dos auxiliares.' });
@@ -205,11 +206,11 @@
     
     const novoNumeroPedido = gerarNumeroPedido();
 
-    const query = 'INSERT INTO pedido (numeroPedido, nomeCliente, CNPJ_Cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO pedido (numeroPedido, nomeCliente, CNPJ_Cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)';
     
     const values = [novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens, quantidadeAtribuidaOS, precoUnidade, precoTotal];
     
-    db.query(query, values, (err, result) => {
+    pool.query(query, values, (err, result) => {
         if (err) {
             console.error(err); 
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -226,15 +227,15 @@
         if (!cnpjLimpo) return res.status(400).json({ message: 'CNPJ inválido.' });
 
         const responseData = { cliente: null, pedidos: [] };
-        const clienteQuery = 'SELECT razao_social, nome_fantasia, unidade FROM cliente WHERE cnpj = ?';
+        const clienteQuery = 'SELECT razao_social, nome_fantasia, unidade FROM cliente WHERE cnpj = $1';
 
-        db.query(clienteQuery, [cnpjLimpo], (err, clienteResults) => {
+        pool.query(clienteQuery, [cnpjLimpo], (err, clienteResults) => {
             if (err) return res.status(500).json({ message: 'Erro no servidor ao buscar cliente.' });
             if (clienteResults.length === 0) return res.status(404).json({ message: 'Cliente não encontrado.' });
             responseData.cliente = clienteResults[0];
 
-            const pedidosQuery = 'SELECT numeroPedido FROM pedido WHERE CNPJ_Cliente = ? ORDER BY numeroPedido DESC';
-            db.query(pedidosQuery, [cnpjLimpo], (err, pedidosResults) => {
+            const pedidosQuery = 'SELECT numeroPedido FROM pedido WHERE CNPJ_Cliente = $1 ORDER BY numeroPedido DESC';
+            pool.query(pedidosQuery, [cnpjLimpo], (err, pedidosResults) => {
                 if (err) return res.status(500).json({ message: 'Erro no servidor ao buscar pedidos.' });
                 responseData.pedidos = pedidosResults;
                 res.status(200).json(responseData);
@@ -250,7 +251,7 @@ app.post('/api/os-produto/fracionado', (req, res) => {
 
     const idAgrupador = uuidv4();
 
-    db.beginTransaction(err => {
+    pool.beginTransaction(err => {
         if (err) {
             console.error("ERRO AO INICIAR TRANSAÇÃO:", err);
             return res.status(500).json({ message: 'Erro interno no servidor.', error: err.message });
@@ -283,7 +284,7 @@ app.post('/api/os-produto/fracionado', (req, res) => {
                         nome_auxiliar,
                         quantidade_itens, 
                         descricao
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 `;
 
                 const values = [
@@ -299,7 +300,7 @@ app.post('/api/os-produto/fracionado', (req, res) => {
                     cleanDescricao
                 ];
 
-                db.query(query, values, (err, result) => {
+                pool.query(query, values, (err, result) => {
                     if (err) {
                         if (err.code === 'ER_DUP_ENTRY') {
                             return reject({ status: 409, message: `Erro: O Número de O.S. '${numero_os}' já existe.` });
@@ -316,10 +317,10 @@ app.post('/api/os-produto/fracionado', (req, res) => {
 
         Promise.all(insertPromises)
             .then(results => {
-                db.commit(err => {
+                pool.commit(err => {
                     if (err) {
                         console.error("ERRO AO COMITAR TRANSAÇÃO:", err);
-                        return db.rollback(() => {
+                        return pool.rollback(() => {
                             res.status(500).json({ message: 'Erro ao salvar os dados.', error: err.message });
                         });
                     }
@@ -327,7 +328,7 @@ app.post('/api/os-produto/fracionado', (req, res) => {
                 });
             })
             .catch(error => {
-                db.rollback(() => {
+                pool.rollback(() => {
                     console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error.error || error.message);
                     res.status(error.status || 500).json({ message: error.message });
                 });
@@ -345,7 +346,7 @@ app.post('/api/os-dados/fracionado', (req, res) => {
 
     const idAgrupador = uuidv4();
 
-    db.beginTransaction(err => {
+    pool.beginTransaction(err => {
         if (err) {
             console.error("ERRO AO INICIAR TRANSAÇÃO:", err);
             return res.status(500).json({ message: 'Erro interno no servidor.', error: err.message });
@@ -378,7 +379,7 @@ app.post('/api/os-dados/fracionado', (req, res) => {
                         nome_auxiliar,
                         quantidade_itens, 
                         descricao
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 `;
 
                 const values = [
@@ -394,7 +395,7 @@ app.post('/api/os-dados/fracionado', (req, res) => {
                     cleanDescricao
                 ];
 
-                db.query(query, values, (err, result) => {
+                pool.query(query, values, (err, result) => {
                     if (err) {
 
                         if (err.code === 'ER_DUP_ENTRY') {
@@ -413,10 +414,10 @@ app.post('/api/os-dados/fracionado', (req, res) => {
         Promise.all(insertPromises)
             .then(results => {
 
-                db.commit(err => {
+                pool.commit(err => {
                     if (err) {
                         console.error("ERRO AO COMITAR TRANSAÇÃO:", err);
-                        return db.rollback(() => {
+                        return pool.rollback(() => {
                             res.status(500).json({ message: 'Erro ao salvar os dados.', error: err.message });
                         });
                     }
@@ -425,7 +426,7 @@ app.post('/api/os-dados/fracionado', (req, res) => {
             })
             .catch(error => {
                 
-                db.rollback(() => {
+                pool.rollback(() => {
                     console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error.error || error.message);
                     res.status(error.status || 500).json({ message: error.message });
                 });
@@ -442,7 +443,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
 
     const idAgrupador = uuidv4();
 
-    db.beginTransaction(err => {
+    pool.beginTransaction(err => {
         if (err) {
             console.error("ERRO AO INICIAR TRANSAÇÃO:", err);
             return res.status(500).json({ message: 'Erro interno no servidor.', error: err.message });
@@ -477,7 +478,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
                         nome_auxiliar,
                         quantidade_itens, 
                         descricao
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 `;
 
                 const values = [
@@ -493,7 +494,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
                     cleanDescricao
                 ];
 
-                db.query(query, values, (err, result) => {
+                pool.query(query, values, (err, result) => {
                     if (err) {
                       
                         if (err.code === 'ER_DUP_ENTRY') {
@@ -513,10 +514,10 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
         Promise.all(insertPromises)
             .then(results => {
              //commit de transação, caso ocorra tudo ok 
-                db.commit(err => {
+                pool.commit(err => {
                     if (err) {
                         console.error("ERRO AO COMITAR TRANSAÇÃO:", err);
-                        return db.rollback(() => {
+                        return pool.rollback(() => {
                             res.status(500).json({ message: 'Erro ao salvar os dados.', error: err.message });
                         });
                     }
@@ -525,7 +526,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
             })
             .catch(error => {
                 
-                db.rollback(() => {
+                pool.rollback(() => {
                     console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error.error || error.message);
                     res.status(error.status || 500).json({ message: error.message });
                 });
@@ -542,7 +543,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
     
     app.get('/visualizarauxiliar', (req, res) => {
         const query = 'SELECT nome, cpf, data_nascimento FROM auxiliar'; 
-        db.query(query, (err, data) => {
+        pool.query(query, (err, data) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             return res.status(200).json(data);
         });
@@ -550,7 +551,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
 
     app.get('/visualizaranalista', (req, res) => {
         const query = 'SELECT nome, cpf, data_nascimento FROM analista'; 
-        db.query(query, (err, data) => {
+        pool.query(query, (err, data) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             return res.status(200).json(data);
         });
@@ -558,7 +559,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
 
     app.get('/visualizarcliente', (req, res) => {
         const query = 'SELECT razao_social, nome_responsavel, contato_responsavel, nome_fantasia, cnpj, unidade, endereco FROM cliente';
-        db.query(query, (err, data) => {
+        pool.query(query, (err, data) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             return res.status(200).json(data);
         });
@@ -566,7 +567,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
 
     app.get('/visualizarpedido', (req, res) => {
         const query = `SELECT p.numeroPedido, p.nomeCliente, p.quantidadeTotal, p.quantidadeAtribuida, DATE_FORMAT(p.data_inicio, '%d/%m/%Y %H:%i') AS data_formatada, c.razao_social, c.unidade FROM pedido AS p INNER JOIN cliente AS c ON p.CNPJ_Cliente = c.cnpj where concluida = false;`;
-        db.query(query, (err, data) => {
+        pool.query(query, (err, data) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             return res.status(200).json(data);
         });
@@ -586,7 +587,7 @@ app.post('/api/os-conciliacao/fracionado', (req, res) => {
             od.concluida = FALSE  
         ORDER BY od.id_os DESC;
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -612,7 +613,7 @@ app.get('/visualizarosdados', (req, res) => {
             od.concluida = FALSE  
         ORDER BY od.id_os DESC;
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_dados' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -636,7 +637,7 @@ app.get('/visualizarosconciliacao', (req, res) => {
             od.concluida = FALSE  
         ORDER BY od.id_os DESC;
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_dados' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -652,8 +653,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
 
     // --- Gerenciamento de Auxiliar por CPF ---
     app.get('/visualizarauxiliar/:cpf', (req, res) => {
-        const query = 'SELECT nome, cpf, data_nascimento FROM auxiliar WHERE cpf = ?';
-        db.query(query, [req.params.cpf], (err, results) => {
+        const query = 'SELECT nome, cpf, data_nascimento FROM auxiliar WHERE cpf = $1';
+        pool.query(query, [req.params.cpf], (err, results) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (results.length === 0) return res.status(404).json({ message: "Auxiliar não encontrado." });
             return res.status(200).json(results[0]);
@@ -663,8 +664,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
     app.put('/editar-auxiliar/:cpf', (req, res) => {
         const { nome, cpf, data_nascimento } = req.body;
         if (!nome || !cpf || !data_nascimento) return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
-        const query = 'UPDATE auxiliar SET nome = ?, cpf = ?, data_nascimento = ? WHERE cpf = ?';
-        db.query(query, [nome, cpf, data_nascimento, req.params.cpf], (err, result) => {
+            const query = 'UPDATE auxiliar SET nome = $1, cpf = $2, data_nascimento = $3 WHERE cpf = $4';
+                pool.query(query, [nome, cpf, data_nascimento, req.params.cpf], (err, result) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'CPF já pertence a outro usuário.' });
                 return res.status(500).json({ message: 'Erro interno no servidor.' });
@@ -675,8 +676,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
     });
 
     app.delete('/deletar-auxiliar/:cpf', (req, res) => {
-        const query = 'DELETE FROM auxiliar WHERE cpf = ?';
-        db.query(query, [req.params.cpf], (err, result) => {
+        const query = 'DELETE FROM auxiliar WHERE cpf =$1 ';
+        pool.query(query, [req.params.cpf], (err, result) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (result.affectedRows === 0) return res.status(404).json({ message: "Auxiliar não encontrado." });
             res.status(200).json({ message: 'Auxiliar deletado com sucesso!' });
@@ -685,8 +686,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
 
     // --- Gerenciamento de Analista por CPF ---
     app.get('/visualizaranalista/:cpf', (req, res) => {
-        const query = 'SELECT nome, cpf, data_nascimento FROM analista WHERE cpf = ?';
-        db.query(query, [req.params.cpf], (err, results) => {
+        const query = 'SELECT nome, cpf, data_nascimento FROM analista WHERE cpf = $1';
+        pool.query(query, [req.params.cpf], (err, results) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (results.length === 0) return res.status(404).json({ message: "Analista não encontrado." });
             return res.status(200).json(results[0]);
@@ -696,8 +697,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
     app.put('/editar-analista/:cpf', (req, res) => {
         const { nome, cpf, data_nascimento } = req.body;
         if (!nome || !cpf || !data_nascimento) return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
-        const query = 'UPDATE analista SET nome = ?, cpf = ?, data_nascimento = ? WHERE cpf = ?';
-        db.query(query, [nome, cpf, data_nascimento, req.params.cpf], (err, result) => {
+        const query = 'UPDATE analista SET nome = $1, cpf = $2, data_nascimento = $3 WHERE cpf = $4';
+        pool.query(query, [nome, cpf, data_nascimento, req.params.cpf], (err, result) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'CPF já pertence a outro usuário.' });
                 return res.status(500).json({ message: 'Erro interno no servidor.' });
@@ -708,8 +709,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
     });
         
     app.delete('/deletar-analista/:cpf', (req, res) => {
-        const query = 'DELETE FROM analista WHERE cpf = ?';
-        db.query(query, [req.params.cpf], (err, result) => {
+        const query = 'DELETE FROM analista WHERE cpf = $1';
+        pool.query(query, [req.params.cpf], (err, result) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (result.affectedRows === 0) return res.status(404).json({ message: "Analista não encontrado." });
             res.status(200).json({ message: 'Analista deletado com sucesso!' });
@@ -718,8 +719,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
 
     // --- Gerenciamento de Cliente por CNPJ ---
     app.get('/visualizarcliente/:cnpj', (req, res) => {
-        const query = 'SELECT nome_fantasia, cnpj, unidade, endereco, razao_social, nome_responsavel, contato_responsavel FROM cliente WHERE cnpj = ?';
-        db.query(query, [req.params.cnpj], (err, results) => {
+        const query = 'SELECT nome_fantasia, cnpj, unidade, endereco, razao_social, nome_responsavel, contato_responsavel FROM cliente WHERE cnpj = $1';
+        pool.query(query, [req.params.cnpj], (err, results) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (results.length === 0) return res.status(404).json({ message: "Cliente não encontrado." });
             return res.status(200).json(results[0]);
@@ -729,8 +730,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
     app.put('/editar-cliente/:cnpj', (req, res) => {
         const { nome_fantasia, cnpj, unidade, endereco, razao_social, nome_responsavel, contato_responsavel } = req.body;
         if (!nome_fantasia || !cnpj || !unidade || !endereco) return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
-        const query = 'UPDATE cliente SET nome_fantasia = ?, cnpj = ?, unidade = ?, endereco = ?, razao_social = ?, nome_responsavel = ?, contato_responsavel = ? WHERE cnpj = ?';
-        db.query(query, [nome_fantasia, cnpj, unidade, endereco, razao_social, nome_responsavel, contato_responsavel, req.params.cnpj], (err, result) => {
+        const query = 'UPDATE cliente SET nome_fantasia = $1, cnpj = $2, unidade = $3, endereco = $4, razao_social = $5, nome_responsavel = $6, contato_responsavel = $7 WHERE cnpj = $8';
+        pool.query(query, [nome_fantasia, cnpj, unidade, endereco, razao_social, nome_responsavel, contato_responsavel, req.params.cnpj], (err, result) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'CNPJ já pertence a outro cliente.' });
                 return res.status(500).json({ message: 'Erro interno no servidor.' });
@@ -744,9 +745,9 @@ app.get('/visualizarosconciliacao', (req, res) => {
 app.delete('/deletar-cliente/:cnpj', (req, res) => {
     const { cnpj } = req.params;
 
-    const checkPedidosQuery = 'SELECT COUNT(*) AS total FROM pedido WHERE CNPJ_Cliente = ?';
+    const checkPedidosQuery = 'SELECT COUNT(*) AS total FROM pedido WHERE CNPJ_Cliente = $1';
     
-    db.query(checkPedidosQuery, [cnpj], (err, results) => {
+    pool.query(checkPedidosQuery, [cnpj], (err, results) => {
         if (err) {
             console.error("Erro ao verificar pedidos do cliente:", err);
             return res.status(500).json({ message: "Erro interno no servidor ao verificar os pedidos." });
@@ -760,9 +761,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
             });
         }
 
-        const deleteQuery = 'DELETE FROM cliente WHERE cnpj = ?';
+        const deleteQuery = 'DELETE FROM cliente WHERE cnpj = $1';
 
-        db.query(deleteQuery, [cnpj], (deleteErr, deleteResult) => {
+        pool.query(deleteQuery, [cnpj], (deleteErr, deleteResult) => {
             if (deleteErr) {
                 return res.status(500).json({ message: "Erro interno no servidor ao deletar o cliente." });
             }
@@ -776,9 +777,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 
     app.get('/api/pedidos/:numeroPedido', (req, res) => {
     const { numeroPedido } = req.params;
-    const query = 'SELECT * FROM pedido WHERE numeroPedido = ?';
+    const query = 'SELECT * FROM pedido WHERE numeroPedido = $1';
 
-    db.query(query, [numeroPedido], (err, result) => {
+    pool.query(query, [numeroPedido], (err, result) => {
         if (err) {
             return res.status(500).json({ message: 'Erro interno no servidor.' });
         }
@@ -812,16 +813,16 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 
     const query = `
         UPDATE pedido SET 
-            nomeCliente = ?, 
-            CNPJ_Cliente = ?, 
-            nomeResponsavel = ?, 
-            contatoResponsavel = ?, 
-            descricao = ?, 
-            quantidadeTotal = ?, 
-            quantidadeAtribuida = ?, 
-            precoUnidade = ?, 
-            precoTotal = ? 
-        WHERE numeroPedido = ?
+            nomeCliente = $1, 
+            CNPJ_Cliente = $2, 
+            nomeResponsavel = $3, 
+            contatoResponsavel = $4, 
+            descricao = $5, 
+            quantidadeTotal = $6, 
+            quantidadeAtribuida = $7, 
+            precoUnidade = $8, 
+            precoTotal = $9 
+        WHERE numeroPedido = $10
     `;
 
   
@@ -838,7 +839,7 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
         paramNumeroPedido 
     ];
 
-    db.query(query, values, (err, result) => {
+    pool.query(query, values, (err, result) => {
         if (err) {
          
             if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -862,11 +863,11 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
     
         const checkOsQuery = `
             SELECT COUNT(*) AS total FROM (
-                SELECT numero_pedido_origem FROM os_produto WHERE numero_pedido_origem = ?
+                SELECT numero_pedido_origem FROM os_produto WHERE numero_pedido_origem = $1
                 UNION ALL
-                SELECT numero_pedido_origem FROM os_conciliacao WHERE numero_pedido_origem = ?
+                SELECT numero_pedido_origem FROM os_conciliacao WHERE numero_pedido_origem = $2
                 UNION ALL
-                SELECT numero_pedido_origem FROM os_dados WHERE numero_pedido_origem = ?
+                SELECT numero_pedido_origem FROM os_dados WHERE numero_pedido_origem = $3
             ) AS combined_os
         `;
     
@@ -876,7 +877,7 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
             numeroPedido
         ];
 
-        db.query(checkOsQuery, params, (err, results) => {
+        pool.query(checkOsQuery, params, (err, results) => {
             if (err) {
                 console.error("Erro ao verificar O.S. vinculadas:", err);
                 return res.status(500).json({ message: "Erro interno no servidor ao verificar as O.S." });
@@ -890,8 +891,8 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
                 });
             }
             
-            const deleteQuery = 'DELETE FROM pedido WHERE numeroPedido = ? ';
-            db.query(deleteQuery, [numeroPedido], (deleteErr, deleteResult) => {
+            const deleteQuery = 'DELETE FROM pedido WHERE numeroPedido = $1 ';
+            pool.query(deleteQuery, [numeroPedido], (deleteErr, deleteResult) => {
                 if (deleteErr) {
                     return res.status(500).json({ message: "Erro interno no servidor ao deletar o pedido." });
                 }
@@ -906,9 +907,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
     app.get('/api/os-produto/:id_os', (req, res) => {
        
         const { id_os } = req.params;
-        const query = 'SELECT * FROM os_produto WHERE id_os = ?';
+        const query = 'SELECT * FROM os_produto WHERE id_os = $1';
 
-        db.query(query, [id_os], (err, result) => {
+        pool.query(query, [id_os], (err, result) => {
             if (err) {
                 return res.status(500).json({ message: 'Erro interno no servidor.' });
             }
@@ -942,15 +943,15 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 
         const query = `
             UPDATE os_produto SET 
-                numero_os = ?,
-                numero_pedido_origem = ?,
-                cnpj_cliente = ?,
-                nome_cliente = ?,
-                unidade_cliente = ?,
-                nome_auxiliar = ?,
-                descricao = ?,
-                quantidade_itens = ?
-            WHERE id_os = ?
+                numero_os = $1,
+                numero_pedido_origem = $2,
+                cnpj_cliente = $3,
+                nome_cliente = $4,
+                unidade_cliente = $5,
+                nome_auxiliar = $6,
+                descricao = $7,
+                quantidade_itens = $8
+            WHERE id_os = $9
         `;
 
         const values = [
@@ -965,7 +966,7 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
             id_os 
         ];
 
-        db.query(query, values, (err, result) => {
+        pool.query(query, values, (err, result) => {
             if (err) {
                 console.error("Erro ao atualizar O.S. de Produto:", err);
                 if (err.code === 'ER_DUP_ENTRY') {
@@ -988,9 +989,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 
         const { id_os } = req.params;
 
-        const query = 'DELETE FROM os_produto WHERE id_os = ?';
+        const query = 'DELETE FROM os_produto WHERE id_os = $1';
 
-        db.query(query, [id_os], (err, result) => {
+        pool.query(query, [id_os], (err, result) => {
             if (err) {
             
                 return res.status(500).json({ message: "Erro interno no servidor ao deletar a OS." });
@@ -1009,9 +1010,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 app.get('/api/os-dados/:id_os', (req, res) => {
 
     const { id_os } = req.params;
-    const query = 'SELECT * FROM os_dados WHERE id_os = ?';
+    const query = 'SELECT * FROM os_dados WHERE id_os = $1';
 
-    db.query(query, [id_os], (err, result) => {
+    pool.query(query, [id_os], (err, result) => {
         if (err) {
             return res.status(500).json({ message: 'Erro interno no servidor.' });
         }
@@ -1025,9 +1026,9 @@ app.get('/api/os-dados/:id_os', (req, res) => {
 app.get('/api/os-conciliacao/:id_os', (req, res) => {
   
     const { id_os } = req.params;
-    const query = 'SELECT * FROM os_conciliacao WHERE id_os = ?';
+    const query = 'SELECT * FROM os_conciliacao WHERE id_os = $1';
 
-    db.query(query, [id_os], (err, result) => {
+    pool.query(query, [id_os], (err, result) => {
         if (err) {
             return res.status(500).json({ message: 'Erro interno no servidor.' });
         }
@@ -1063,16 +1064,16 @@ app.put('/api/os-dados/:id_os', (req, res) => {
 
     const query = `
         UPDATE os_dados SET 
-            numero_os = ?,
-            numero_pedido_origem = ?,
-            cnpj_cliente = ?,
-            nome_cliente = ?,
-            unidade_cliente = ?,
-            nome_auxiliar = ?,
-            descricao = ?,
-            quantidade_itens = ?
+            numero_os = $1,
+            numero_pedido_origem = $2,
+            cnpj_cliente = $3,
+            nome_cliente = $4,
+            unidade_cliente = $5,
+            nome_auxiliar = $6,
+            descricao = $7,
+            quantidade_itens = $8
 
-        WHERE id_os = ?
+        WHERE id_os = $9
     `;
 
 
@@ -1088,7 +1089,7 @@ app.put('/api/os-dados/:id_os', (req, res) => {
         id_os 
     ];
 
-    db.query(query, values, (err, result) => {
+    pool.query(query, values, (err, result) => {
         if (err) {
             console.error("Erro ao atualizar O.S. de Dados:", err);
             if (err.code === 'ER_DUP_ENTRY') {
@@ -1132,15 +1133,15 @@ app.put('/api/os-dados/:id_os', (req, res) => {
 
     const query = `
         UPDATE os_conciliacao SET 
-            numero_os = ?,
-            numero_pedido_origem = ?,
-            cnpj_cliente = ?,
-            nome_cliente = ?,
-            unidade_cliente = ?,
-            nome_auxiliar = ?,
-            descricao = ?,
-            quantidade_itens = ?
-        WHERE id_os = ?
+            numero_os = $1,
+            numero_pedido_origem = $2,
+            cnpj_cliente = $3,
+            nome_cliente = $4,
+            unidade_cliente = $5,
+            nome_auxiliar = $6,
+            descricao = $7,
+            quantidade_itens = $8
+        WHERE id_os = $9
     `;
 
 
@@ -1156,7 +1157,7 @@ app.put('/api/os-dados/:id_os', (req, res) => {
         id_os 
     ];
 
-    db.query(query, values, (err, result) => {
+    pool.query(query, values, (err, result) => {
         if (err) {
             console.error("Erro ao atualizar O.S.:", err);
             if (err.code === 'ER_DUP_ENTRY') {
@@ -1181,9 +1182,9 @@ app.delete('/api/os-dados/:id_os', (req, res) => {
     // Pega o ID da OS a partir dos parâmetros da URLk
     const { id_os } = req.params;
 
-    const query = 'DELETE FROM os_dados WHERE id_os = ?';
+    const query = 'DELETE FROM os_dados WHERE id_os = $1';
 
-    db.query(query, [id_os], (err, result) => {
+    pool.query(query, [id_os], (err, result) => {
         if (err) {
 
 
@@ -1203,9 +1204,9 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
 
     const { id_os } = req.params;
 
-    const query = 'DELETE FROM os_conciliacao WHERE id_os = ?';
+    const query = 'DELETE FROM os_conciliacao WHERE id_os = $1';
 
-    db.query(query, [id_os], (err, result) => {
+    pool.query(query, [id_os], (err, result) => {
         if (err) {
            
             return res.status(500).json({ message: "Erro interno no servidor ao deletar a OS." });
@@ -1235,8 +1236,8 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
 
      // --- Gerenciamento de Cliente por CNPJ ---
     app.get('/visualizarpedido/:numeroPedido', (req, res) => {
-        const query = 'SELECT numeroPedido, nomeCliente, CNPJ_Cliente, descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal, nomeResponsavel, contatoResponsavel FROM pedido WHERE numeroPedido = ?';
-        db.query(query, [req.params.numeroPedido], (err, results) => {
+        const query = 'SELECT numeroPedido, nomeCliente, CNPJ_Cliente, descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal, nomeResponsavel, contatoResponsavel FROM pedido WHERE numeroPedido = $1';
+        pool.query(query, [req.params.numeroPedido], (err, results) => {
             if (err) return res.status(500).json({ message: "Erro interno no servidor." });
             if (results.length === 0) return res.status(404).json({ message: "Pedido não encontrado." });
             return res.status(200).json(results[0]);
@@ -1257,9 +1258,9 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
             return res.status(400).json({ error: 'Nenhum ID fornecido para encerramento.' });
         }
 
-        const query = "UPDATE os_produto SET concluida = true, data_conclusao = NOW() WHERE id_os IN (?)";
+        const query = "UPDATE os_produto SET concluida = true, data_conclusao = NOW() WHERE id_os IN ($1)";
 
-        db.query(query, [ids], (err, result) => {
+        pool.query(query, [ids], (err, result) => {
             if (err) {
                 console.error("Erro ao encerrar O.S.:", err);
                 return res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -1284,7 +1285,7 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
             od.concluida = TRUE -- Apenas as concluídas
         ORDER BY od.data_conclusao DESC; -- Ordena pelas mais recentes
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro ao buscar O.S. de dados concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -1299,9 +1300,9 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
         return res.status(400).json({ error: 'Nenhum ID fornecido para encerramento.' });
     }
 
-    const query = "UPDATE os_dados SET concluida = TRUE, data_conclusao = NOW() WHERE id_os IN (?)";
+    const query = "UPDATE os_dados SET concluida = TRUE, data_conclusao = NOW() WHERE id_os IN ($1)";
 
-    db.query(query, [ids], (err, result) => {
+    pool.query(query, [ids], (err, result) => {
         if (err) {
             console.error("Erro ao encerrar O.S. de dados:", err);
             return res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -1325,7 +1326,7 @@ app.get('/os-dados-concluida', (req, res) => {
             od.concluida = TRUE -- Apenas as concluídas
         ORDER BY od.data_conclusao DESC; -- Ordena pelas mais recentes
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro ao buscar O.S. de dados concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -1341,9 +1342,9 @@ app.put('/os-conciliacao-concluida', (req, res) => {
         return res.status(400).json({ error: 'Nenhum ID fornecido para encerramento.' });
     }
 
-    const query = "UPDATE os_conciliacao SET concluida = TRUE, data_conclusao = NOW() WHERE id_os IN (?)";
+    const query = "UPDATE os_conciliacao SET concluida = TRUE, data_conclusao = NOW() WHERE id_os IN ($1)";
 
-    db.query(query, [ids], (err, result) => {
+    pool.query(query, [ids], (err, result) => {
         if (err) {
             console.error("Erro ao encerrar O.S. de dados:", err);
             return res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -1367,7 +1368,7 @@ app.get('/os-conciliacao-concluida', (req, res) => {
             od.concluida = TRUE -- Apenas as concluídas
         ORDER BY od.data_conclusao DESC; -- Ordena pelas mais recentes
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro ao buscar O.S. de dados concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -1393,10 +1394,10 @@ app.put('/pedidos-concluidos', (req, res) => {
     const query = `
         UPDATE pedido
         SET concluida = TRUE, data_conclusao = NOW() 
-        WHERE numeroPedido IN (?);
+        WHERE numeroPedido IN ($1);
     `;
 
-    db.query(query, [ids], (err, result) => {
+    pool.query(query, [ids], (err, result) => {
         if (err) {
             console.error("Erro ao marcar pedidos como concluídos:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
@@ -1425,7 +1426,7 @@ app.get('/pedidos-concluidos', (req, res) => {
         ORDER BY 
             p.data_conclusao DESC;
     `;
-    db.query(query, (err, data) => {
+    pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro ao buscar pedidos de compra concluídos:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
