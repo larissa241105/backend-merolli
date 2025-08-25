@@ -595,18 +595,18 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
 
 app.get('/visualizarosproduto', (req, res) => {
     const query = `
-        SELECT 
-            od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
-            od.nome_auxiliar, od.quantidade_itens, od.descricao,
-            TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
-        FROM 
-            os_produto AS od
-        INNER JOIN 
-            cliente AS c ON od.cnpj_cliente = c.cnpj
-        WHERE 
-            od.concluida = FALSE  
-        ORDER BY od.id_os DESC;
-    `;
+    SELECT 
+        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
+        od.nome_auxiliar, od.quantidade_itens, od.descricao,
+        TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
+    FROM 
+        os_produto AS od
+    INNER JOIN 
+        cliente AS c ON od.cnpj_cliente = c.cnpj
+    WHERE 
+        od.concluida = FALSE
+    ORDER BY od.id_os DESC
+`;
     pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
@@ -621,19 +621,19 @@ app.get('/visualizarosproduto', (req, res) => {
 
 
 app.get('/visualizarosdados', (req, res) => {
-    const query = `
-        SELECT 
-            od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
-            od.nome_auxiliar, od.quantidade_itens, od.descricao,
-            TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
-        FROM 
-            os_dados AS od
-        INNER JOIN 
-            cliente AS c ON od.cnpj_cliente = c.cnpj
-        WHERE 
-            od.concluida = FALSE  
-        ORDER BY od.id_os DESC;
-    `;
+   const query = `
+    SELECT 
+        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
+        od.nome_auxiliar, od.quantidade_itens, od.descricao,
+        TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
+    FROM 
+        os_dados AS od
+    INNER JOIN 
+        cliente AS c ON od.cnpj_cliente = c.cnpj
+    WHERE 
+        od.concluida = FALSE
+    ORDER BY od.id_os DESC
+`;
     pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
@@ -646,19 +646,19 @@ app.get('/visualizarosdados', (req, res) => {
 
 
 app.get('/visualizarosconciliacao', (req, res) => {
-    const query = `
-        SELECT 
-            od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
-            od.nome_auxiliar, od.quantidade_itens, od.descricao,
-            TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
-        FROM 
-            os_conciliacao AS od
-        INNER JOIN 
-            cliente AS c ON od.cnpj_cliente = c.cnpj
-        WHERE 
-            od.concluida = FALSE  
-        ORDER BY od.id_os DESC;
-    `;
+   const query = `
+    SELECT 
+        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
+        od.nome_auxiliar, od.quantidade_itens, od.descricao,
+        TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
+    FROM 
+        os_conciliacao AS od
+    INNER JOIN 
+        cliente AS c ON od.cnpj_cliente = c.cnpj
+    WHERE 
+        od.concluida = FALSE
+    ORDER BY od.id_os DESC
+`;
     pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
