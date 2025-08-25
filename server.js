@@ -4,7 +4,6 @@
         const express = require('express');
         const { Pool } = require('pg'); 
         const cors = require('cors');
-        const mysql = require('mysql2');
         const bcrypt = require('bcrypt');
         const { v4: uuidv4 } = require('uuid');
         const app = express();
