@@ -11,23 +11,24 @@
         // =================================================================
         // ||                       MIDDLEWARES                         ||
         // =================================================================
-        app.use(cors());
-        app.use(express.json());
+        const corsOptions = {
+        origin: 'https://merollisoft.com.br/'
+        };
+
+        app.use(cors(corsOptions));
+            app.use(express.json());
 
         // =================================================================
         // ||                  CONFIGURAÇÃO DO BANCO DE DADOS             ||
         // =================================================================
      
         const pool = new Pool({
-            // Ele busca a string de conexão da variável de ambiente DATABASE_URL.
             connectionString: process.env.DATABASE_URL, 
-            // O Render exige conexões seguras (SSL), então adicionamos esta configuração.
             ssl: {
                 rejectUnauthorized: false
             }
         });
 
-        // ALTERAÇÃO 3: O teste de conexão é feito com uma query simples.
         pool.query('SELECT NOW()', (err, res) => {
             if (err) {
                 console.error('Erro ao conectar ao banco de dados PostgreSQL:', err);
@@ -41,8 +42,7 @@
             console.log(`Servidor rodando na porta ${port}`);
         });
 
-        // IMPORTANTE: Exporte o 'pool' se você precisar usá-lo em outros arquivos.
-        // Se todo o seu código estiver neste arquivo, você não precisa desta linha.
+      
         module.exports = pool;
     // =================================================================
     // ||                      ROTA DE LOGIN (SEGURA)                 ||
