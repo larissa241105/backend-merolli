@@ -844,9 +844,9 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
     });
 });
 
-app.get('/api/pedidos/:numeroPedido', (req, res) => {
+app.get('/api/pedidos/:numeropedido', (req, res) => {
     const { numeroPedido } = req.params;
-    const query = 'SELECT * FROM pedido WHERE numeroPedido = $1';
+    const query = 'SELECT * FROM pedido WHERE numeropedido = $1';
 
     pool.query(query, [numeroPedido], (err, result) => {
         if (err) {
@@ -863,7 +863,7 @@ app.get('/api/pedidos/:numeroPedido', (req, res) => {
 
 
 // ROTA PUT PARA ATUALIZAR UM PEDIDO EXISTENTE
-app.put('/api/pedidos/:numeroPedido', (req, res) => {
+app.put('/api/pedidos/:numeropedido', (req, res) => {
     const { numeroPedido: paramNumeroPedido } = req.params;
     const { 
         cliente, 
@@ -892,7 +892,7 @@ app.put('/api/pedidos/:numeroPedido', (req, res) => {
             quantidadeatribuida = $7, 
             precounidade = $8, 
             precototal = $9 
-        WHERE numeroPedido = $10
+        WHERE numeropedido = $10
     `;
 
     const values = [
@@ -927,7 +927,7 @@ app.put('/api/pedidos/:numeroPedido', (req, res) => {
 
 
 
-    app.delete('/api/pedidos/:numeroPedido', (req, res) => {
+    app.delete('/api/pedidos/:numeropedido', (req, res) => {
     const { numeroPedido } = req.params;
 
     const checkOsQuery = `
@@ -1297,9 +1297,11 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
     // --- GERENCIAMENTO DE PEDIDO ---
 
      // --- Gerenciamento de Cliente por CNPJ ---
- app.get('/visualizarpedido/:numeroPedido', (req, res) => {
-    const query = 'SELECT numeropedido, nomecliente, cnpj_cliente, descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal, nomeresponsavel, contatoresponsavel FROM pedido WHERE numeroPedido = $1';
-    pool.query(query, [req.params.numeroPedido], (err, results) => {
+ app.get('/visualizarpedido/:numeropedido', (req, res) => {
+    const query = `SELECT numeropedido, nomecliente, cnpj_cliente, 
+    descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal, 
+    nomeresponsavel, contatoresponsavel FROM pedido WHERE numeropedido = $1`;
+    pool.query(query, [req.params.numeropedido], (err, results) => {
         if (err) return res.status(500).json({ message: "Erro interno no servidor." });
         
         // CORREÇÃO 1: Usar results.rows.length
