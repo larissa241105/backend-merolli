@@ -264,7 +264,7 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         responseData.cliente = clienteResults.rows[0];
 
         // BUSCAR PEDIDOS
-        const pedidosQuery = 'SELECT numeroPedido FROM pedido WHERE CNPJ_Cliente = $1 ORDER BY numeroPedido DESC';
+        const pedidosQuery = 'SELECT numeropedido FROM pedido WHERE CNPJ_Cliente = $1 ORDER BY numeropedido DESC';
         const pedidosResults = await pool.query(pedidosQuery, [cnpjLimpo]);
         responseData.pedidos = pedidosResults.rows;
 
@@ -962,7 +962,7 @@ app.put('/api/pedidos/:numeroPedido', (req, res) => {
         }
         
         // CORREÇÃO 2: Remover o espaço após $1
-        const deleteQuery = 'DELETE FROM pedido WHERE numeroPedido = $1';
+        const deleteQuery = 'DELETE FROM pedido WHERE numeropedido = $1';
         
         pool.query(deleteQuery, [numeroPedido], (deleteErr, deleteResult) => {
             if (deleteErr) {
@@ -1298,7 +1298,7 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
 
      // --- Gerenciamento de Cliente por CNPJ ---
  app.get('/visualizarpedido/:numeroPedido', (req, res) => {
-    const query = 'SELECT numeroPedido, nomeCliente, CNPJ_Cliente, descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal, nomeResponsavel, contatoResponsavel FROM pedido WHERE numeroPedido = $1';
+    const query = 'SELECT numeropedido, nomecliente, cnpj_cliente, descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal, nomeresponsavel, contatoresponsavel FROM pedido WHERE numeroPedido = $1';
     pool.query(query, [req.params.numeroPedido], (err, results) => {
         if (err) return res.status(500).json({ message: "Erro interno no servidor." });
         
@@ -1495,7 +1495,7 @@ app.put('/pedidos-concluidos', (req, res) => {
     const query = `
         UPDATE pedido
         SET concluida = TRUE, data_conclusao = NOW() 
-        WHERE numeroPedido IN (${placeholders});
+        WHERE numeropedido IN (${placeholders});
     `;
 
     pool.query(query, ids, (err, result) => {
@@ -1516,8 +1516,8 @@ app.put('/pedidos-concluidos', (req, res) => {
 app.get('/pedidos-concluidos', (req, res) => {
     const query = `
         SELECT 
-            p.numeroPedido, p.nomeCliente, c.razao_social, p.unidade,
-            p.quantidadeTotal, p.quantidadeAtribuida,
+            p.numeropedido, p.nomecliente, c.razao_social, p.unidade,
+            p.quantidadetotal, p.quantidadeatribuida,
             -- CORREÇÃO 1: Usar TO_CHAR em vez de DATE_FORMAT
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
