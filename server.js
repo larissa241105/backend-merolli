@@ -203,7 +203,8 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
 
 
         app.post('/api/pedidos', (req, res) => {
-    const { cliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens, quantidadeAtribuidaOS, precoUnidade, precoTotal } = req.body;
+    const { cliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens,
+        quantidadeAtribuidaOS, precoUnidade, precoTotal } = req.body;
 
     if (!cnpj_cliente || !nomeResponsavel) {
         return res.status(400).json({ message: 'CNPJ e Nome do Responsável são obrigatórios.' });
@@ -847,10 +848,10 @@ app.delete('/deletar-cliente/:cnpj', (req, res) => {
 });
 
 app.get('/api/pedidos/:numeropedido', (req, res) => {
-    const { numeroPedido } = req.params;
+    const { numeropedido } = req.params;
     const query = 'SELECT * FROM pedido WHERE numeropedido = $1';
 
-    pool.query(query, [numeroPedido], (err, result) => {
+    pool.query(query, [numeropedido], (err, result) => {
         if (err) {
             return res.status(500).json({ message: 'Erro interno no servidor.' });
         }
@@ -866,7 +867,7 @@ app.get('/api/pedidos/:numeropedido', (req, res) => {
 
 // ROTA PUT PARA ATUALIZAR UM PEDIDO EXISTENTE
 app.put('/api/pedidos/:numeropedido', (req, res) => {
-    const { numeroPedido: paramNumeroPedido } = req.params;
+    const { numeropedido: paramNumeroPedido } = req.params;
     const { 
         cliente, 
         cnpj_cliente, 
@@ -930,7 +931,7 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
 
 
     app.delete('/api/pedidos/:numeropedido', (req, res) => {
-    const { numeroPedido } = req.params;
+    const { numeropedido } = req.params;
 
     const checkOsQuery = `
         SELECT COUNT(*) AS total FROM (
@@ -943,9 +944,9 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
     `;
     
     const params = [
-        numeroPedido, 
-        numeroPedido,
-        numeroPedido
+        numeropedido, 
+        numeropedido,
+        numeropedido
     ];
 
     pool.query(checkOsQuery, params, (err, results) => {
