@@ -187,6 +187,7 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         res.status(404).json({ message: 'Cliente não encontrado.' });
     });
 });
+
    app.get('/api/auxiliares', (req, res) => {
     const query = 'SELECT id, nome FROM auxiliar ORDER BY nome ASC'; 
 
@@ -392,7 +393,7 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
             const cleanDescricao = descricao === '' ? null : descricao;
 
             const query = `
-                INSERT INTO os_produto (
+                INSERT INTO os_dados (
                     id_agrupador_os,
                     numero_os,
                     numero_pedido_origem, 
@@ -480,7 +481,7 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
             const cleanDescricao = descricao === '' ? null : descricao;
 
             const query = `
-                INSERT INTO os_produto (
+                INSERT INTO os_conciliacao (
                     id_agrupador_os,
                     numero_os,
                     numero_pedido_origem, 
