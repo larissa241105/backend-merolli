@@ -224,8 +224,8 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
     // CORREÇÃO 1: Adicionar "RETURNING id" à sua consulta SQL
     const query = `
         INSERT INTO pedido (
-            numeropedido, nomecliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, 
-            descricao, quantidadetotal, quantidadeatribuida, precoUnidade, precoTotal
+            numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
+            descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id
     `;
@@ -885,13 +885,13 @@ app.put('/api/pedidos/:numeroPedido', (req, res) => {
         UPDATE pedido SET 
             nomecliente = $1, 
             cnpj_cliente = $2, 
-            nomeResponsavel = $3, 
-            contatoResponsavel = $4, 
+            nomeresponsavel = $3, 
+            contatoresponsavel = $4, 
             descricao = $5, 
             quantidadetotal = $6, 
             quantidadeatribuida = $7, 
-            precoUnidade = $8, 
-            precoTotal = $9 
+            precounidade = $8, 
+            precototal = $9 
         WHERE numeroPedido = $10
     `;
 
