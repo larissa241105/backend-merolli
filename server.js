@@ -579,7 +579,7 @@ app.get('/visualizarpedido', (req, res) => {
     const query = `
         SELECT 
             p.numeropedido, p.nomecliente, c.razao_social, c.unidade,
-            p.quantidadetotal, p.quantidadeatribuida,
+            p.quantidadetotal, p.quantidadeatribuida, p.descricao,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
         FROM 
