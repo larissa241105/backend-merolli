@@ -967,7 +967,7 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
         // CORREÇÃO 2: Remover o espaço após $1
         const deleteQuery = 'DELETE FROM pedido WHERE numeropedido = $1';
         
-        pool.query(deleteQuery, [numeroPedido], (deleteErr, deleteResult) => {
+        pool.query(deleteQuery, [numeropedido], (deleteErr, deleteResult) => {
             if (deleteErr) {
                 return res.status(500).json({ message: "Erro interno no servidor ao deletar o pedido." });
             }
