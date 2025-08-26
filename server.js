@@ -180,13 +180,13 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         // CORRIGIDO: Verifique o tamanho de 'results.rows'
         if (results.rows.length > 0) { 
             // CORRIGIDO: Retorne o primeiro item de 'results.rows'
+
             return res.status(200).json(results.rows[0]); 
         }
         
         res.status(404).json({ message: 'Cliente não encontrado.' });
     });
 });
-
    app.get('/api/auxiliares', (req, res) => {
     const query = 'SELECT id, nome FROM auxiliar ORDER BY nome ASC'; 
 
@@ -224,8 +224,8 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
     // CORREÇÃO 1: Adicionar "RETURNING id" à sua consulta SQL
     const query = `
         INSERT INTO pedido (
-            numeroPedido, nomeCliente, CNPJ_Cliente, nomeResponsavel, contatoResponsavel, 
-            descricao, quantidadeTotal, quantidadeAtribuida, precoUnidade, precoTotal
+            numeropedido, nomecliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, 
+            descricao, quantidadetotal, quantidadeatribuida, precoUnidade, precoTotal
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id
     `;
@@ -883,13 +883,13 @@ app.put('/api/pedidos/:numeroPedido', (req, res) => {
 
     const query = `
         UPDATE pedido SET 
-            nomeCliente = $1, 
-            CNPJ_Cliente = $2, 
+            nomecliente = $1, 
+            cnpj_cliente = $2, 
             nomeResponsavel = $3, 
             contatoResponsavel = $4, 
             descricao = $5, 
-            quantidadeTotal = $6, 
-            quantidadeAtribuida = $7, 
+            quantidadetotal = $6, 
+            quantidadeatribuida = $7, 
             precoUnidade = $8, 
             precoTotal = $9 
         WHERE numeroPedido = $10
