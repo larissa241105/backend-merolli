@@ -576,7 +576,7 @@ app.get('/visualizarpedido', (req, res) => {
     // A query usa a função TO_CHAR do PostgreSQL para formatar datas
     const query = `
         SELECT 
-            p.numeropedido, p.nomecliente, c.razao_social, p.unidade,
+            p.numeropedido, p.nomecliente, c.razao_social, c.unidade,
             p.quantidadetotal, p.quantidadeatribuida,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
@@ -589,6 +589,7 @@ app.get('/visualizarpedido', (req, res) => {
         ORDER BY 
             p.data_conclusao DESC;
     `;
+
     pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro ao buscar pedidos de compra:", err);
