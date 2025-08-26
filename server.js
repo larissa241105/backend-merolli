@@ -585,7 +585,7 @@ app.get('/visualizarpedido', (req, res) => {
         INNER JOIN 
             cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
-            p.concluida = TRUE
+            p.concluida = false
         ORDER BY 
             p.data_conclusao DESC;
     `;
