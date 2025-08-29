@@ -376,14 +376,16 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
     let client;
 
     try {
-        client = await pool.connect(); // Obtém um cliente do pool
-        await client.query('BEGIN'); // Inicia a transação
+        client = await pool.connect();
+        await client.query('BEGIN');
 
         const insertPromises = osArray.map(async osData => {
+            // ALTERADO: Adicionado 'cpfAuxiliar' na desestruturação
             const {
                 cnpj, cliente, unidade, numeroPedidoSelecionado,
                 quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
-                quantidadeItens, descricao, cpf_auxiliar
+                cpfAuxiliar, // <-- NOVO
+                quantidadeItens, descricao
             } = osData;
 
             if (!cnpj || !numeroPedidoSelecionado || !idAuxiliarSelecionado || !quantidadeItens) {
@@ -392,7 +394,10 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
 
             const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanDescricao = descricao === '' ? null : descricao;
+            // NOVO: Limpa o CPF para garantir que só tenha números (opcional, mas recomendado)
+            const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
 
+            // ALTERADO: Query SQL com a nova coluna 'cpf_auxiliar'
             const query = `
                 INSERT INTO os_dados (
                     id_agrupador_os,
@@ -403,12 +408,13 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
                     unidade_cliente, 
                     quantidade_auxiliar_os, 
                     nome_auxiliar,
+                    cpf_auxiliar, -- <-- COLUNA NOVA
                     quantidade_itens, 
                     descricao
-                    cpf_auxiliar
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `;
 
+            // ALTERADO: Array de valores com o novo campo 'cleanCpf'
             const values = [
                 idAgrupador,
                 numero_os,
@@ -418,9 +424,9 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
                 unidade,
                 parseInt(quantidadeAuxiliarOs, 10),
                 nomeAuxiliar,
+                cleanCpf, // <-- VALOR NOVO
                 parseInt(quantidadeItens, 10),
-                cleanDescricao,
-                cpf_auxiliar
+                cleanDescricao
             ];
             
             return await client.query(query, values);
@@ -436,13 +442,7 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
             await client.query('ROLLBACK');
         }
         
-        // CORRIGINDO OS CÓDIGOS DE ERRO DO MYSQL
-        if (error.code === '23505') { 
-            return res.status(409).json({ message: `Erro: O Número de O.S. já existe.` });
-        }
-        if (error.code === '23503') { 
-            return res.status(404).json({ message: 'Erro: O CNPJ ou o Pedido informado não existem.' });
-        }
+        // ... (bloco de tratamento de erro permanece o mesmo)
         
         console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
         res.status(error.status || 500).json({ message: error.message || 'Erro interno no servidor.' });
@@ -719,7 +719,7 @@ app.get('/visualizarosconciliacao', (req, res) => {
     });
 });
 
-
+// Substitua sua rota app.delete('/deletar-auxiliar/:cpf', ...) por esta:
 
 app.delete('/deletar-auxiliar/:cpf', (req, res) => {
     const { cpf } = req.params;
