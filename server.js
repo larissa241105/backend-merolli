@@ -189,7 +189,7 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
 });
 
    app.get('/api/auxiliares', (req, res) => {
-    const query = 'SELECT id, nome FROM auxiliar ORDER BY nome ASC'; 
+    const query = 'SELECT id, nome, cpf FROM auxiliar ORDER BY nome ASC'; 
 
     pool.query(query, (err, results) => {
         if (err) {
