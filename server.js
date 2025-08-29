@@ -383,7 +383,7 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
             const {
                 cnpj, cliente, unidade, numeroPedidoSelecionado,
                 quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
-                quantidadeItens, descricao
+                quantidadeItens, descricao, cpf_auxiliar
             } = osData;
 
             if (!cnpj || !numeroPedidoSelecionado || !idAuxiliarSelecionado || !quantidadeItens) {
@@ -405,6 +405,7 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
                     nome_auxiliar,
                     quantidade_itens, 
                     descricao
+                    cpf_auxiliar
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             `;
 
@@ -418,7 +419,8 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
                 parseInt(quantidadeAuxiliarOs, 10),
                 nomeAuxiliar,
                 parseInt(quantidadeItens, 10),
-                cleanDescricao
+                cleanDescricao,
+                cpf_auxiliar
             ];
             
             return await client.query(query, values);
@@ -717,17 +719,54 @@ app.get('/visualizarosconciliacao', (req, res) => {
     });
 });
 
-  app.delete('/deletar-auxiliar/:cpf', (req, res) => {
-    // CORREÇÃO: Remover o espaço após $1
-    const query = 'DELETE FROM auxiliar WHERE cpf = $1';
+
+
+app.delete('/deletar-auxiliar/:cpf', (req, res) => {
+    const { cpf } = req.params;
+
+    // 1. Query para verificar se o CPF do auxiliar está vinculado a alguma OS
+    const checkOsQuery = `
+        SELECT COUNT(*) AS total FROM (
+            SELECT cpf_auxiliar FROM os_produto WHERE cpf_auxiliar = $1
+            UNION ALL
+            SELECT cpf_auxiliar FROM os_conciliacao WHERE cpf_auxiliar = $2
+            UNION ALL
+            SELECT cpf_auxiliar FROM os_dados WHERE cpf_auxiliar = $3
+        ) AS combined_os
+    `;
     
-    pool.query(query, [req.params.cpf], (err, result) => {
-        if (err) return res.status(500).json({ message: "Erro interno no servidor." });
+    const params = [cpf, cpf, cpf];
+
+    pool.query(checkOsQuery, params, (err, results) => {
+        if (err) {
+            console.error("Erro ao verificar vínculo do auxiliar com O.S.:", err);
+            return res.status(500).json({ message: "Erro interno no servidor ao verificar as O.S." });
+        }
+
+        const linkedOsCount = parseInt(results.rows[0].total, 10);
+
+        // 2. Se houver vínculo, retorna um erro de conflito
+        if (linkedOsCount > 0) {
+            return res.status(409).json({
+                message: `Este analista não pode ser excluído, pois está vinculado a ${linkedOsCount} Ordem(ns) de Serviço.`
+            });
+        }
         
-        // CORREÇÃO: Usar result.rowCount
-        if (result.rowCount === 0) return res.status(404).json({ message: "Auxiliar não encontrado." });
+        // 3. Se não houver vínculo, prossegue com a exclusão
+        const deleteQuery = 'DELETE FROM auxiliar WHERE cpf = $1';
         
-        res.status(200).json({ message: 'Auxiliar deletado com sucesso!' });
+        pool.query(deleteQuery, [cpf], (deleteErr, deleteResult) => {
+            if (deleteErr) {
+                console.error("Erro ao deletar auxiliar:", deleteErr);
+                return res.status(500).json({ message: "Erro interno no servidor ao deletar o analista." });
+            }
+            
+            if (deleteResult.rowCount === 0) {
+                return res.status(404).json({ message: "Analista não encontrado." });
+            }
+            
+            res.status(200).json({ message: 'Analista deletado com sucesso!' });
+        });
     });
 });
 
@@ -964,7 +1003,6 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
             });
         }
         
-        // CORREÇÃO 2: Remover o espaço após $1
         const deleteQuery = 'DELETE FROM pedido WHERE numeropedido = $1';
         
         pool.query(deleteQuery, [numeropedido], (deleteErr, deleteResult) => {
@@ -1286,13 +1324,6 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
 
 
 
