@@ -293,8 +293,9 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
         const insertPromises = osArray.map(async osData => {
             const {
-                cnpj, cliente, unidade, numeroPedidoSelecionado,
+                   cnpj, cliente, unidade, numeroPedidoSelecionado,
                 quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
+                cpfAuxiliar, // <-- NOVO
                 quantidadeItens, descricao
             } = osData;
 
@@ -304,10 +305,10 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
             const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanDescricao = descricao === '' ? null : descricao;
-
+         const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             const query = `
                 INSERT INTO os_produto (
-                    id_agrupador_os,
+                  id_agrupador_os,
                     numero_os,
                     numero_pedido_origem, 
                     cnpj_cliente, 
@@ -315,13 +316,14 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                     unidade_cliente, 
                     quantidade_auxiliar_os, 
                     nome_auxiliar,
+                    cpf_auxiliar, -- <-- COLUNA NOVA
                     quantidade_itens, 
                     descricao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `;
 
             const values = [
-                idAgrupador,
+                 idAgrupador,
                 numero_os,
                 numeroPedidoSelecionado,
                 cnpj.replace(/\D/g, ''),
@@ -329,6 +331,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 unidade,
                 parseInt(quantidadeAuxiliarOs, 10),
                 nomeAuxiliar,
+                cleanCpf, // <-- VALOR NOVO
                 parseInt(quantidadeItens, 10),
                 cleanDescricao
             ];
@@ -471,8 +474,9 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
 
         const insertPromises = osArray.map(async osData => {
             const {
-                cnpj, cliente, unidade, numeroPedidoSelecionado,
+                 cnpj, cliente, unidade, numeroPedidoSelecionado,
                 quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
+                cpfAuxiliar, // <-- NOVO
                 quantidadeItens, descricao
             } = osData;
 
@@ -482,10 +486,12 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
 
             const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanDescricao = descricao === '' ? null : descricao;
+            // NOVO: Limpa o CPF para garantir que só tenha números (opcional, mas recomendado)
+            const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
 
             const query = `
                 INSERT INTO os_conciliacao (
-                    id_agrupador_os,
+                 id_agrupador_os,
                     numero_os,
                     numero_pedido_origem, 
                     cnpj_cliente, 
@@ -493,11 +499,13 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
                     unidade_cliente, 
                     quantidade_auxiliar_os, 
                     nome_auxiliar,
+                    cpf_auxiliar, -- <-- COLUNA NOVA
                     quantidade_itens, 
                     descricao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `;
 
+            // ALTERADO: Array de valores com o novo campo 'cleanCpf'
             const values = [
                 idAgrupador,
                 numero_os,
@@ -507,6 +515,7 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
                 unidade,
                 parseInt(quantidadeAuxiliarOs, 10),
                 nomeAuxiliar,
+                cleanCpf, // <-- VALOR NOVO
                 parseInt(quantidadeItens, 10),
                 cleanDescricao
             ];
