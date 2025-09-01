@@ -1074,7 +1074,8 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
             nome_auxiliar = $6,
             descricao = $7,
             quantidade_itens = $8
-        WHERE id_os = $9
+            cpf_auxiliar = $9
+        WHERE id_os = $10
     `;
 
     const values = [
