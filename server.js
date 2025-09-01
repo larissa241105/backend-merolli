@@ -1074,7 +1074,7 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
             unidade_cliente = $5,
             nome_auxiliar = $6,
             descricao = $7,
-            quantidade_itens = $8
+            quantidade_itens = $8,
             cpf_auxiliar = $9
         WHERE id_os = $10
     `;
@@ -1197,7 +1197,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
             unidade_cliente = $5,
             nome_auxiliar = $6,
             descricao = $7,
-            quantidade_itens = $8
+            quantidade_itens = $8,
             cpf_auxiliar = $9
         WHERE id_os = $10
     `;
@@ -1248,6 +1248,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
         unidade_cliente,
         id_auxiliar, 
         nome_auxiliar,
+
         descricao,
         quantidade_itens,
         cpf_auxiliar
@@ -1268,7 +1269,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
             unidade_cliente = $5,
             nome_auxiliar = $6,
             descricao = $7,
-            quantidade_itens = $8
+            quantidade_itens = $8,
             cpf_auxiliar = $9
         WHERE id_os = $10
     `;
