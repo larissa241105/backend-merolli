@@ -1178,7 +1178,8 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
         id_auxiliar, 
         nome_auxiliar,
         descricao,
-        quantidade_itens
+        quantidade_itens,
+        cpf_auxiliar
     } = req.body;
 
     if (!numero_pedido_origem || !cnpj_cliente || !id_auxiliar) {
@@ -1189,7 +1190,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
 
     const query = `
         UPDATE os_dados SET 
-            numero_os = $1,
+           numero_os = $1,
             numero_pedido_origem = $2,
             cnpj_cliente = $3,
             nome_cliente = $4,
@@ -1197,7 +1198,8 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
             nome_auxiliar = $6,
             descricao = $7,
             quantidade_itens = $8
-        WHERE id_os = $9
+            cpf_auxiliar = $9
+        WHERE id_os = $10
     `;
 
     const values = [
@@ -1209,6 +1211,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
         nome_auxiliar,
         descricao,
         quantidade_itens,
+        cpf_auxiliar,
         id_os 
     ];
 
@@ -1246,7 +1249,8 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
         id_auxiliar, 
         nome_auxiliar,
         descricao,
-        quantidade_itens
+        quantidade_itens,
+        cpf_auxiliar
     } = req.body;
 
     if (!numero_pedido_origem || !cnpj_cliente || !id_auxiliar) {
@@ -1257,7 +1261,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
 
     const query = `
         UPDATE os_conciliacao SET 
-            numero_os = $1,
+             numero_os = $1,
             numero_pedido_origem = $2,
             cnpj_cliente = $3,
             nome_cliente = $4,
@@ -1265,7 +1269,8 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
             nome_auxiliar = $6,
             descricao = $7,
             quantidade_itens = $8
-        WHERE id_os = $9
+            cpf_auxiliar = $9
+        WHERE id_os = $10
     `;
 
     const values = [
@@ -1277,6 +1282,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
         nome_auxiliar,
         descricao,
         quantidade_itens,
+        cpf_auxiliar,
         id_os 
     ];
 
