@@ -1055,7 +1055,8 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
         id_auxiliar, 
         nome_auxiliar,
         descricao,
-        quantidade_itens
+        quantidade_itens,
+        cpf_auxiliar
     } = req.body;
 
     if (!numero_pedido_origem || !cnpj_cliente || !id_auxiliar) {
@@ -1087,6 +1088,7 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
         nome_auxiliar,
         descricao,
         quantidade_itens,
+        cpf_auxiliar,
         id_os 
     ];
 
