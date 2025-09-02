@@ -595,29 +595,46 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
 });
 
 app.get('/visualizarpedido', (req, res) => {
-    // A query usa a função TO_CHAR do PostgreSQL para formatar datas
+    // ESTA QUERY FOI TOTALMENTE REFEITA PARA O NOVO MODELO DE DADOS
     const query = `
         SELECT 
-            p.numeropedido, p.nomecliente, c.razao_social, c.unidade,
-            p.quantidadetotal, p.quantidadeatribuida, p.descricao,
+            p.numeropedido,
+            p.nomecliente,
+            c.razao_social,
+            p.descricao,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
+            
+            -- 1. Soma as quantidades de todas as distribuições associadas a este pedido
+            SUM(d.quantidade) AS quantidadetotal,
+            
+            -- 2. Soma as quantidades já atribuídas em OS de todas as distribuições
+            SUM(d.quantidade_atribuida_os) AS quantidadeatribuida,
+            
+            -- 3. Agrupa o nome de todas as unidades em uma única string, separada por vírgula
+            STRING_AGG(d.nome_unidade, ', ') AS unidades
+
         FROM 
             pedido AS p
+        -- Junta com a tabela de cliente para pegar a razão social
         INNER JOIN 
             cliente AS c ON p.cnpj_cliente = c.cnpj
+        -- Junta com a tabela de distribuição para somar e agrupar os dados
+        LEFT JOIN 
+            distribuicao_pedido AS d ON p.id = d.pedido_id
         WHERE 
             p.concluida = false
+        -- Agrupa os resultados por pedido, para que a soma (SUM) e a agregação (STRING_AGG) funcionem corretamente
+        GROUP BY 
+            p.id, c.razao_social
         ORDER BY 
-            p.data_conclusao DESC;
+            p.data_inicio DESC;
     `;
 
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar pedidos de compra:", err);
+            console.error("Erro ao buscar pedidos:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // Usar .rows para acessar o array de dados
         return res.status(200).json(data.rows);
     });
 });
