@@ -596,64 +596,39 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
 
 
 app.get('/visualizarpedido', (req, res) => {
-    // ESTA QUERY AGORA CRIA UM ARRAY JSON ANINHADO COM AS DISTRIBUIÇÕES
+    // ESTA QUERY AGORA RETORNA UMA LINHA PARA CADA UNIDADE DE CADA PEDIDO
     const query = `
         SELECT 
-            p.*, -- Seleciona todos os campos da tabela pedido (id, numeropedido, etc)
+            p.numeropedido,
+            p.nomecliente,
             c.razao_social,
+            p.descricao,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             
-            -- Subquery para buscar e agregar todas as distribuições de um pedido em um array JSON
-            (
-                SELECT COALESCE(JSON_AGG(sub), '[]'::json)
-                FROM (
-                    SELECT 
-                        d.id AS dist_id,
-                        d.nome_unidade, 
-                        d.quantidade, 
-                        d.quantidade_atribuida_os
-                    FROM 
-                        distribuicao_pedido AS d
-                    WHERE 
-                        d.pedido_id = p.id
-                    ORDER BY 
-                        d.nome_unidade
-                ) AS sub
-            ) AS distribuicoes,
-
-            -- Subquery para calcular os totais, para não perdermos essa informação
-            (
-                SELECT
-                    SUM(d.quantidade)
-                FROM
-                    distribuicao_pedido AS d
-                WHERE
-                    d.pedido_id = p.id
-            ) AS quantidadetotal,
-            (
-                SELECT
-                    SUM(d.quantidade_atribuida_os)
-                FROM
-                    distribuicao_pedido AS d
-                WHERE
-                    d.pedido_id = p.id
-            ) AS quantidadeatribuida
+            -- Informações específicas da distribuição (unidade)
+            d.id AS distribuicao_id, -- ID único para cada linha, essencial para o React!
+            d.nome_unidade,
+            d.quantidade,
+            d.quantidade_atribuida_os
 
         FROM 
-            pedido AS p
+            distribuicao_pedido AS d -- Começamos pela tabela de distribuição
         INNER JOIN 
-            cliente AS c ON p.cnpj_cliente = c.cnpj
+            pedido AS p ON d.pedido_id = p.id -- Juntamos com os dados do pedido principal
+        INNER JOIN 
+            cliente AS c ON p.cnpj_cliente = c.cnpj -- Juntamos com os dados do cliente
         WHERE 
             p.concluida = false
         ORDER BY 
-            p.data_inicio DESC;
+            p.numeropedido DESC, d.nome_unidade ASC; -- Agrupa as unidades do mesmo pedido
     `;
 
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar pedidos:", err);
+            console.error("Erro ao buscar distribuições de pedidos:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
+        // O resultado já é uma lista "achatada", perfeita para o frontend
         return res.status(200).json(data.rows);
     });
 });
