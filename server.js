@@ -201,8 +201,9 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
 });
 
 
+// Rota para criar um novo pedido com distribuição
 app.post('/api/pedidos', async (req, res) => {
-
+    // Agora esperamos um array 'distribuicoes' no corpo da requisição
     const {
         cliente,
         cnpj_cliente,
@@ -210,13 +211,14 @@ app.post('/api/pedidos', async (req, res) => {
         contatoResponsavel,
         descricao,
         precoUnidade,
-        distribuicoes 
+        distribuicoes // Ex: [{ nome_unidade: 'RJ', quantidade: 300 }, { nome_unidade: 'SP', quantidade: 700 }]
     } = req.body;
 
     if (!cnpj_cliente || !nomeResponsavel || !distribuicoes || distribuicoes.length === 0) {
         return res.status(400).json({ message: 'CNPJ, Nome do Responsável e ao menos uma distribuição são obrigatórios.' });
     }
 
+    // Calcula os totais a partir do array de distribuições
     const quantidadeTotalItens = distribuicoes.reduce((acc, item) => acc + parseInt(item.quantidade, 10), 0);
     const precoTotal = quantidadeTotalItens * parseFloat(precoUnidade);
 
@@ -232,11 +234,13 @@ app.post('/api/pedidos', async (req, res) => {
     };
 
     const novoNumeroPedido = gerarNumeroPedido();
-    const client = await pool.connect();
+    const client = await pool.connect(); // Pega uma conexão do pool
 
     try {
+        // Inicia a transação
         await client.query('BEGIN');
 
+        // 1. Insere o pedido principal na tabela 'pedido'
         const pedidoQuery = `
             INSERT INTO pedido (
                 numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel,
@@ -251,14 +255,16 @@ app.post('/api/pedidos', async (req, res) => {
         const pedidoResult = await client.query(pedidoQuery, pedidoValues);
         const pedidoId = pedidoResult.rows[0].id;
 
+        // 2. Itera sobre as distribuições e insere cada uma na tabela 'distribuicao_pedido'
         const distribuicaoQuery = `
-            INSERT INTO distribuicao_pedido (pedido_id, unidade, quantidade)
+            INSERT INTO distribuicao_pedido (pedido_id, nome_unidade, quantidade)
             VALUES ($1, $2, $3);
         `;
         for (const dist of distribuicoes) {
-            await client.query(distribuicaoQuery, [pedidoId, dist.unidade, dist.quantidade]);
+            await client.query(distribuicaoQuery, [pedidoId, dist.nome_unidade, dist.quantidade]);
         }
 
+        // Se tudo deu certo, commita a transação
         await client.query('COMMIT');
 
         res.status(201).json({
@@ -268,6 +274,7 @@ app.post('/api/pedidos', async (req, res) => {
         });
 
     } catch (err) {
+        // Se algo deu errado, faz o rollback
         await client.query('ROLLBACK');
         console.error('Erro na transação', err);
         if (err.code === '23503') {
@@ -275,7 +282,7 @@ app.post('/api/pedidos', async (req, res) => {
         }
         res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
     } finally {
-
+        // Libera a conexão de volta para o pool
         client.release();
     }
 });
