@@ -196,85 +196,87 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
             console.error('Erro ao buscar auxiliares:', err);
             return res.status(500).json({ message: 'Erro interno ao buscar dados dos auxiliares.' });
         }
-        // CORREÇÃO: Usar .json(results.rows)
         res.status(200).json(results.rows);
     });
 });
 
 
-        app.post('/api/pedidos', (req, res) => {
-    const { cliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens,
-        quantidadeAtribuidaOS, precoUnidade, precoTotal } = req.body;
+app.post('/api/pedidos', async (req, res) => {
 
-    if (!cnpj_cliente || !nomeResponsavel) {
-        return res.status(400).json({ message: 'CNPJ e Nome do Responsável são obrigatórios.' });
+    const {
+        cliente,
+        cnpj_cliente,
+        nomeResponsavel,
+        contatoResponsavel,
+        descricao,
+        precoUnidade,
+        distribuicoes 
+    } = req.body;
+
+    if (!cnpj_cliente || !nomeResponsavel || !distribuicoes || distribuicoes.length === 0) {
+        return res.status(400).json({ message: 'CNPJ, Nome do Responsável e ao menos uma distribuição são obrigatórios.' });
     }
+
+    const quantidadeTotalItens = distribuicoes.reduce((acc, item) => acc + parseInt(item.quantidade, 10), 0);
+    const precoTotal = quantidadeTotalItens * parseFloat(precoUnidade);
 
     const gerarNumeroPedido = () => {
         const agora = new Date();
-        const ano = String(agora.getFullYear()).slice(-2); 
-        const mes = String(agora.getMonth() + 1).padStart(2, '0'); 
+        const ano = String(agora.getFullYear()).slice(-2);
+        const mes = String(agora.getMonth() + 1).padStart(2, '0');
         const dia = String(agora.getDate()).padStart(2, '0');
         const hora = String(agora.getHours()).padStart(2, '0');
         const minuto = String(agora.getMinutes()).padStart(2, '0');
         const segundo = String(agora.getSeconds()).padStart(2, '0');
-        return `${ano}${mes}${dia}${hora}${minuto}${segundo}`; 
+        return `${ano}${mes}${dia}${hora}${minuto}${segundo}`;
     };
-    
+
     const novoNumeroPedido = gerarNumeroPedido();
-
-    // CORREÇÃO 1: Adicionar "RETURNING id" à sua consulta SQL
-    const query = `
-        INSERT INTO pedido (
-            numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
-            descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id
-    `;
-    
-    const values = [novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens, quantidadeAtribuidaOS, precoUnidade, precoTotal];
-    
-    pool.query(query, values, (err, result) => {
-        if (err) {
-            console.error(err); 
-            // CORREÇÃO 2: Código de erro para violação de chave estrangeira no PostgreSQL é '23503'
-            if (err.code === '23503') { 
-                return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
-            }
-            return res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
-        }
-        // CORREÇÃO 3: O ID inserido está em result.rows[0].id
-        const pedidoId = result.rows[0].id;
-        res.status(201).json({ message: 'Pedido cadastrado com sucesso!', pedidoId: pedidoId, numeroPedido: novoNumeroPedido });
-    });
-});
-
-    app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
-    const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
-    if (!cnpjLimpo) return res.status(400).json({ message: 'CNPJ inválido.' });
+    const client = await pool.connect();
 
     try {
-        const responseData = { cliente: null, pedidos: [] };
+        await client.query('BEGIN');
 
-        // BUSCAR CLIENTE
-        const clienteQuery = 'SELECT razao_social, nome_fantasia, unidade FROM cliente WHERE cnpj = $1';
-        const clienteResults = await pool.query(clienteQuery, [cnpjLimpo]);
+        const pedidoQuery = `
+            INSERT INTO pedido (
+                numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel,
+                descricao, precounidade, precototal
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id;
+        `;
+        const pedidoValues = [
+            novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel,
+            contatoResponsavel, descricao, precoUnidade, precoTotal
+        ];
+        const pedidoResult = await client.query(pedidoQuery, pedidoValues);
+        const pedidoId = pedidoResult.rows[0].id;
 
-        if (clienteResults.rows.length === 0) {
-            return res.status(404).json({ message: 'Cliente não encontrado.' });
+        const distribuicaoQuery = `
+            INSERT INTO distribuicao_pedido (pedido_id, unidade, quantidade)
+            VALUES ($1, $2, $3);
+        `;
+        for (const dist of distribuicoes) {
+            await client.query(distribuicaoQuery, [pedidoId, dist.unidade, dist.quantidade]);
         }
-        responseData.cliente = clienteResults.rows[0];
 
-        // BUSCAR PEDIDOS
-        const pedidosQuery = 'SELECT numeropedido FROM pedido WHERE CNPJ_Cliente = $1 ORDER BY numeropedido DESC';
-        const pedidosResults = await pool.query(pedidosQuery, [cnpjLimpo]);
-        responseData.pedidos = pedidosResults.rows;
+        await client.query('COMMIT');
 
-        res.status(200).json(responseData);
+        res.status(201).json({
+            message: 'Pedido e distribuição cadastrados com sucesso!',
+            pedidoId: pedidoId,
+            numeroPedido: novoNumeroPedido
+        });
 
     } catch (err) {
-        console.error('Erro na rota de detalhes do cliente:', err);
-        res.status(500).json({ message: 'Erro interno no servidor.' });
+        await client.query('ROLLBACK');
+        console.error('Erro na transação', err);
+        if (err.code === '23503') {
+            return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
+        }
+        res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
+    } finally {
+
+        client.release();
     }
 });
 
