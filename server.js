@@ -645,44 +645,31 @@ app.get('/visualizarpedido', (req, res) => {
 
 
 app.get('/visualizarosproduto', (req, res) => {
-    // ESTA QUERY AGORA AGRUPA AS O.S. E CRIA UM ARRAY JSON COM OS DETALHES
+    // ESTA QUERY FOI SIMPLIFICADA PARA RETORNAR UMA LINHA POR O.S. INDIVIDUAL
     const query = `
-        SELECT 
-            od.id_agrupador_os,
-            MIN(od.nome_cliente) AS nome_cliente,
-            MIN(c.razao_social) AS razao_social,
-            MIN(od.numero_pedido_origem) AS numero_pedido_origem,
-            TO_CHAR(MIN(od.data_criacao), 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            
-            -- Soma a quantidade de itens de todas as O.S. dentro do mesmo grupo
-            SUM(od.quantidade_itens) AS quantidade_total_agrupada,
-            
-            -- Cria um array JSON com os detalhes de cada O.S. individual (cada funcionário)
-            JSON_AGG(
-                json_build_object(
-                    'id_os', od.id_os,
-                    'numero_os', od.numero_os,
-                    'nome_auxiliar', od.nome_auxiliar,
-                    'quantidade_itens', od.quantidade_itens,
-                    'descricao', od.descricao
-                ) ORDER BY od.nome_auxiliar
-            ) AS os_individuais
-
-        FROM 
-            os_produto AS od
-        INNER JOIN 
-            cliente AS c ON od.cnpj_cliente = c.cnpj
-        WHERE 
-            od.concluida = FALSE
-        -- O agrupamento é a chave para criar uma linha por "grupo de trabalho"
-        GROUP BY 
-            od.id_agrupador_os
-        ORDER BY 
-            MIN(od.data_criacao) DESC;
-    `;
+    SELECT 
+        od.id_os,
+        od.numero_os,
+        od.nome_cliente,
+        c.razao_social,
+        od.unidade_cliente,
+        od.numero_pedido_origem,
+        od.nome_auxiliar,
+        od.quantidade_itens,
+        od.descricao,
+        TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
+    FROM 
+        os_produto AS od
+    INNER JOIN 
+        cliente AS c ON od.cnpj_cliente = c.cnpj
+    WHERE 
+        od.concluida = FALSE
+    ORDER BY 
+        od.id_os DESC;
+`;
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar O.S. de produto agrupadas:", err);
+            console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
         return res.status(200).json(data.rows);
