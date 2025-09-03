@@ -288,6 +288,38 @@ app.post('/api/pedidos', async (req, res) => {
 });
 
 
+app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
+    const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
+    if (!cnpjLimpo) return res.status(400).json({ message: 'CNPJ inválido.' });
+
+    try {
+        const responseData = { cliente: null, pedidos: [] };
+
+        // BUSCAR CLIENTE
+        const clienteQuery = 'SELECT razao_social, nome_fantasia, unidade FROM cliente WHERE cnpj = $1';
+        const clienteResults = await pool.query(clienteQuery, [cnpjLimpo]);
+
+        if (clienteResults.rows.length === 0) {
+            return res.status(404).json({ message: 'Cliente não encontrado.' });
+        }
+        responseData.cliente = clienteResults.rows[0];
+
+        // BUSCAR PEDIDOS
+        const pedidosQuery = 'SELECT numeropedido FROM pedido WHERE CNPJ_Cliente = $1 ORDER BY numeropedido DESC';
+        const pedidosResults = await pool.query(pedidosQuery, [cnpjLimpo]);
+        responseData.pedidos = pedidosResults.rows;
+
+        res.status(200).json(responseData);
+
+    } catch (err) {
+        console.error('Erro na rota de detalhes do cliente:', err);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+});
+
+
+
+
 // Rota para buscar todas as distribuições de pedidos abertos de um cliente
 app.get('/api/pedidos/distribuicoes/por-cliente/:cnpj', async (req, res) => {
     const { cnpj } = req.params;
@@ -354,10 +386,7 @@ app.get('/api/pedidos/:numeroPedido/distribuicoes', async (req, res) => {
 });
 
 
-// --- ROTA 2: Criar as O.S. fracionadas por funcionário (LÓGICA PRINCIPAL) ---
-// Este endpoint substitui o seu antigo. Ele é projetado para trabalhar com a nova arquitetura.
 app.post('/api/os-produto/fracionado', async (req, res) => {
-    // O frontend enviará o ID da distribuição e a lista de funcionários
     const { distribuicaoId, descricao, funcionarios } = req.body;
 
     if (!distribuicaoId || !Array.isArray(funcionarios) || funcionarios.length === 0) {
@@ -389,9 +418,11 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
             throw { status: 400, message: `A quantidade solicitada (${quantidadeSolicitada}) excede o saldo disponível para esta unidade (${quantidadeTotalDisponivel}).` };
         }
 
+        // 3. Gerar um ID único para agrupar todas as linhas desta O.S.
         const idAgrupador = uuidv4();
         const quantidadeAuxiliarOs = funcionarios.length;
 
+        // 4. Inserir uma linha para CADA funcionário na tabela 'os_produto'
         const insertPromises = funcionarios.map(func => {
             const numero_os = `OS-${distribuicaoId}-${func.funcionario_id}-${Date.now()}`; // Lógica de número único
             const osQuery = `
@@ -417,6 +448,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
         });
         await Promise.all(insertPromises);
 
+        // 5. Atualizar a quantidade atribuída na tabela 'distribuicao_pedido'
         const novaQuantidadeAtribuida = distribuicaoData.quantidade_atribuida_os + quantidadeSolicitada;
         await client.query(
             'UPDATE distribuicao_pedido SET quantidade_atribuida_os = $1 WHERE id = $2',
