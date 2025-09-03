@@ -202,12 +202,25 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
 });
 
 
-        app.post('/api/pedidos', (req, res) => {
-    const { cliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens,
-        quantidadeAtribuidaOS, precoUnidade, precoTotal } = req.body;
+   // Arquivo: seu-arquivo-de-rotas.js
 
-    if (!cnpj_cliente || !nomeResponsavel) {
-        return res.status(400).json({ message: 'CNPJ e Nome do Responsável são obrigatórios.' });
+// ... (outras rotas)
+
+app.post('/api/pedidos', async (req, res) => {
+    // 1. O corpo da requisição agora espera um array de 'unidades'
+    const { 
+        cliente, 
+        cnpj_cliente, 
+        nomeResponsavel, 
+        contatoResponsavel, 
+        descricao, 
+        precoUnidade, 
+        precoTotal,
+        unidades // Ex: [{ nome: 'Manaus', quantidade: 500 }, { nome: 'Rio de Janeiro', quantidade: 500 }]
+    } = req.body;
+
+    if (!cnpj_cliente || !nomeResponsavel || !unidades || unidades.length === 0) {
+        return res.status(400).json({ message: 'CNPJ, Nome do Responsável e ao menos uma Unidade são obrigatórios.' });
     }
 
     const gerarNumeroPedido = () => {
@@ -222,32 +235,57 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
     };
     
     const novoNumeroPedido = gerarNumeroPedido();
+    const client = await pool.connect(); // Pega uma conexão do pool
 
-    // CORREÇÃO 1: Adicionar "RETURNING id" à sua consulta SQL
-    const query = `
-        INSERT INTO pedido (
-            numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
-            descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id
-    `;
-    
-    const values = [novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens, quantidadeAtribuidaOS, precoUnidade, precoTotal];
-    
-    pool.query(query, values, (err, result) => {
-        if (err) {
-            console.error(err); 
-            // CORREÇÃO 2: Código de erro para violação de chave estrangeira no PostgreSQL é '23503'
-            if (err.code === '23503') { 
-                return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
-            }
-            return res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
+    try {
+        await client.query('BEGIN'); // Inicia a transação
+
+        // 2. Insere o pedido "mestre" na tabela principal
+        const pedidoQuery = `
+            INSERT INTO pedido (
+                numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
+                descricao, precounidade, precototal
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id;
+        `;
+        const pedidoValues = [
+            novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, 
+            contatoResponsavel, descricao, precoUnidade, precoTotal
+        ];
+        
+        const pedidoResult = await client.query(pedidoQuery, pedidoValues);
+        const pedidoId = pedidoResult.rows[0].id;
+
+        // 3. Itera sobre as unidades e insere cada uma na nova tabela
+        const unidadeQuery = `
+            INSERT INTO pedido_unidades (pedido_id, unidade_nome, quantidade) 
+            VALUES ($1, $2, $3);
+        `;
+        for (const unidade of unidades) {
+            await client.query(unidadeQuery, [pedidoId, unidade.nome, unidade.quantidade]);
         }
-        // CORREÇÃO 3: O ID inserido está em result.rows[0].id
-        const pedidoId = result.rows[0].id;
-        res.status(201).json({ message: 'Pedido cadastrado com sucesso!', pedidoId: pedidoId, numeroPedido: novoNumeroPedido });
-    });
+
+        await client.query('COMMIT'); // Finaliza a transação com sucesso
+
+        res.status(201).json({ 
+            message: 'Pedido e suas unidades cadastrados com sucesso!', 
+            pedidoId: pedidoId, 
+            numeroPedido: novoNumeroPedido 
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK'); // Desfaz tudo em caso de erro
+        console.error('Erro na transação de cadastro de pedido:', err);
+        if (err.code === '23503') { // Erro de chave estrangeira (CNPJ não existe)
+            return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
+        }
+        res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
+    } finally {
+        client.release(); // Libera a conexão de volta para o pool
+    }
 });
+
+
 
     app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
     const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
@@ -277,6 +315,8 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         res.status(500).json({ message: 'Erro interno no servidor.' });
     }
 });
+
+
 
 app.post('/api/os-produto/fracionado', async (req, res) => {
     const osArray = req.body;
@@ -585,33 +625,43 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
     });
 });
 
+
+
 app.get('/visualizarpedido', (req, res) => {
-    // A query usa a função TO_CHAR do PostgreSQL para formatar datas
+
     const query = `
         SELECT 
-            p.numeropedido, p.nomecliente, c.razao_social, c.unidade,
-            p.quantidadetotal, p.quantidadeatribuida, p.descricao,
+            p.numeropedido, 
+            p.nomecliente, 
+            p.descricao,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
+            c.razao_social,
+            pu.id AS unidade_id, -- ID único da linha da unidade, para usar como "key" no React
+            pu.unidade_nome,
+            pu.quantidade,
+            pu.quantidade_atribuida_os
         FROM 
             pedido AS p
+        INNER JOIN 
+            pedido_unidades AS pu ON p.id = pu.pedido_id
         INNER JOIN 
             cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
             p.concluida = false
         ORDER BY 
-            p.data_conclusao DESC;
+            p.data_inicio DESC, pu.unidade_nome ASC;
     `;
 
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar pedidos de compra:", err);
+            console.error("Erro ao buscar detalhes dos pedidos por unidade:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // Usar .rows para acessar o array de dados
         return res.status(200).json(data.rows);
     });
 });
+
+
 
 app.get('/visualizarosproduto', (req, res) => {
     const query = `
