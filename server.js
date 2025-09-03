@@ -196,99 +196,60 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
             console.error('Erro ao buscar auxiliares:', err);
             return res.status(500).json({ message: 'Erro interno ao buscar dados dos auxiliares.' });
         }
+        // CORREÇÃO: Usar .json(results.rows)
         res.status(200).json(results.rows);
     });
 });
 
 
-// Rota para criar um novo pedido com distribuição
-app.post('/api/pedidos', async (req, res) => {
-    // Agora esperamos um array 'distribuicoes' no corpo da requisição
-    const {
-        cliente,
-        cnpj_cliente,
-        nomeResponsavel,
-        contatoResponsavel,
-        descricao,
-        precoUnidade,
-        distribuicoes // Ex: [{ nome_unidade: 'RJ', quantidade: 300 }, { nome_unidade: 'SP', quantidade: 700 }]
-    } = req.body;
+        app.post('/api/pedidos', (req, res) => {
+    const { cliente, cnpj_cliente, nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens,
+        quantidadeAtribuidaOS, precoUnidade, precoTotal } = req.body;
 
-    if (!cnpj_cliente || !nomeResponsavel || !distribuicoes || distribuicoes.length === 0) {
-        return res.status(400).json({ message: 'CNPJ, Nome do Responsável e ao menos uma distribuição são obrigatórios.' });
+    if (!cnpj_cliente || !nomeResponsavel) {
+        return res.status(400).json({ message: 'CNPJ e Nome do Responsável são obrigatórios.' });
     }
-
-    // Calcula os totais a partir do array de distribuições
-    const quantidadeTotalItens = distribuicoes.reduce((acc, item) => acc + parseInt(item.quantidade, 10), 0);
-    const precoTotal = quantidadeTotalItens * parseFloat(precoUnidade);
 
     const gerarNumeroPedido = () => {
         const agora = new Date();
-        const ano = String(agora.getFullYear()).slice(-2);
-        const mes = String(agora.getMonth() + 1).padStart(2, '0');
+        const ano = String(agora.getFullYear()).slice(-2); 
+        const mes = String(agora.getMonth() + 1).padStart(2, '0'); 
         const dia = String(agora.getDate()).padStart(2, '0');
         const hora = String(agora.getHours()).padStart(2, '0');
         const minuto = String(agora.getMinutes()).padStart(2, '0');
         const segundo = String(agora.getSeconds()).padStart(2, '0');
-        return `${ano}${mes}${dia}${hora}${minuto}${segundo}`;
+        return `${ano}${mes}${dia}${hora}${minuto}${segundo}`; 
     };
-
+    
     const novoNumeroPedido = gerarNumeroPedido();
-    const client = await pool.connect(); // Pega uma conexão do pool
 
-    try {
-        // Inicia a transação
-        await client.query('BEGIN');
-
-        // 1. Insere o pedido principal na tabela 'pedido'
-        const pedidoQuery = `
-            INSERT INTO pedido (
-                numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel,
-                descricao, precounidade, precototal
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id;
-        `;
-        const pedidoValues = [
-            novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel,
-            contatoResponsavel, descricao, precoUnidade, precoTotal
-        ];
-        const pedidoResult = await client.query(pedidoQuery, pedidoValues);
-        const pedidoId = pedidoResult.rows[0].id;
-
-        // 2. Itera sobre as distribuições e insere cada uma na tabela 'distribuicao_pedido'
-        const distribuicaoQuery = `
-            INSERT INTO distribuicao_pedido (pedido_id, nome_unidade, quantidade)
-            VALUES ($1, $2, $3);
-        `;
-        for (const dist of distribuicoes) {
-            await client.query(distribuicaoQuery, [pedidoId, dist.nome_unidade, dist.quantidade]);
+    // CORREÇÃO 1: Adicionar "RETURNING id" à sua consulta SQL
+    const query = `
+        INSERT INTO pedido (
+            numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
+            descricao, quantidadetotal, quantidadeatribuida, precounidade, precototal
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id
+    `;
+    
+    const values = [novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, contatoResponsavel, descricao, quantidadeTotalItens, quantidadeAtribuidaOS, precoUnidade, precoTotal];
+    
+    pool.query(query, values, (err, result) => {
+        if (err) {
+            console.error(err); 
+            // CORREÇÃO 2: Código de erro para violação de chave estrangeira no PostgreSQL é '23503'
+            if (err.code === '23503') { 
+                return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
+            }
+            return res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
         }
-
-        // Se tudo deu certo, commita a transação
-        await client.query('COMMIT');
-
-        res.status(201).json({
-            message: 'Pedido e distribuição cadastrados com sucesso!',
-            pedidoId: pedidoId,
-            numeroPedido: novoNumeroPedido
-        });
-
-    } catch (err) {
-        // Se algo deu errado, faz o rollback
-        await client.query('ROLLBACK');
-        console.error('Erro na transação', err);
-        if (err.code === '23503') {
-            return res.status(404).json({ message: 'Erro: O CNPJ informado não pertence a um cliente cadastrado.' });
-        }
-        res.status(500).json({ message: 'Erro interno ao cadastrar pedido.' });
-    } finally {
-        // Libera a conexão de volta para o pool
-        client.release();
-    }
+        // CORREÇÃO 3: O ID inserido está em result.rows[0].id
+        const pedidoId = result.rows[0].id;
+        res.status(201).json({ message: 'Pedido cadastrado com sucesso!', pedidoId: pedidoId, numeroPedido: novoNumeroPedido });
+    });
 });
 
-
-app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
+    app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
     const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
     if (!cnpjLimpo) return res.status(400).json({ message: 'CNPJ inválido.' });
 
@@ -317,153 +278,92 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
     }
 });
 
-
-
-
-// Rota para buscar todas as distribuições de pedidos abertos de um cliente
-app.get('/api/pedidos/distribuicoes/por-cliente/:cnpj', async (req, res) => {
-    const { cnpj } = req.params;
-    const cnpjLimpo = cnpj.replace(/\D/g, '');
-
-    const query = `
-        SELECT 
-            p.numeropedido,
-            c.razao_social, 
-            c.nome_fantasia,
-            d.id AS distribuicao_id,
-            d.nome_unidade,
-            d.quantidade,
-            d.quantidade_atribuida_os
-        FROM 
-            distribuicao_pedido d
-        JOIN 
-            pedido p ON d.pedido_id = p.id
-        JOIN 
-            cliente c ON p.cnpj_cliente = c.cnpj
-        WHERE 
-            p.cnpj_cliente = $1 
-            AND p.concluida = false
-            -- Apenas mostra unidades que ainda têm itens para serem atribuídos
-            AND d.quantidade > d.quantidade_atribuida_os 
-        ORDER BY
-            p.numeropedido, d.nome_unidade;
-    `;
-
-    try {
-        const result = await pool.query(query, [cnpjLimpo]);
-        res.status(200).json(result.rows);
-    } catch (err) {
-        console.error("Erro ao buscar distribuições por cliente:", err);
-        res.status(500).json({ message: "Erro interno no servidor." });
-    }
-});
-
-
-app.get('/api/pedidos/:numeroPedido/distribuicoes', async (req, res) => {
-    const { numeroPedido } = req.params;
-
-    try {
-        const pedidoResult = await pool.query('SELECT id FROM pedido WHERE numeropedido = $1', [numeroPedido]);
-
-        if (pedidoResult.rows.length === 0) {
-            return res.status(404).json({ message: 'Pedido não encontrado.' });
-        }
-        const pedidoId = pedidoResult.rows[0].id;
-
-        const distribuicoesResult = await pool.query(
-            `SELECT id, nome_unidade, quantidade, quantidade_atribuida_os 
-             FROM distribuicao_pedido 
-             WHERE pedido_id = $1 
-             ORDER BY nome_unidade`,
-            [pedidoId]
-        );
-
-        res.status(200).json(distribuicoesResult.rows);
-    } catch (err) {
-        console.error('Erro ao buscar distribuições:', err);
-        res.status(500).json({ message: 'Erro interno ao buscar distribuições do pedido.' });
-    }
-});
-
-
 app.post('/api/os-produto/fracionado', async (req, res) => {
-    const { distribuicaoId, descricao, funcionarios } = req.body;
-
-    if (!distribuicaoId || !Array.isArray(funcionarios) || funcionarios.length === 0) {
-        return res.status(400).json({ message: 'ID da Distribuição e ao menos um funcionário são obrigatórios.' });
+    const osArray = req.body;
+    if (!Array.isArray(osArray) || osArray.length === 0) {
+        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
-    const client = await pool.connect();
+    const idAgrupador = uuidv4();
+    let client;
+
     try {
-        await client.query('BEGIN');
+        client = await pool.connect(); // Obtém um cliente do pool
+        await client.query('BEGIN'); // Inicia a transação
 
-        // 1. Obter dados da distribuição e do pedido pai
-        const distQuery = `
-            SELECT dp.*, p.numeropedido, p.cnpj_cliente, p.nomecliente
-            FROM distribuicao_pedido dp
-            JOIN pedido p ON dp.pedido_id = p.id
-            WHERE dp.id = $1;
-        `;
-        const distResult = await client.query(distQuery, [distribuicaoId]);
-        if (distResult.rows.length === 0) {
-            throw { status: 404, message: 'Distribuição não encontrada.' };
-        }
-        const distribuicaoData = distResult.rows[0];
+        const insertPromises = osArray.map(async osData => {
+            const {
+                   cnpj, cliente, unidade, numeroPedidoSelecionado,
+                quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
+                cpfAuxiliar, // <-- NOVO
+                quantidadeItens, descricao
+            } = osData;
 
-        // 2. Validar a quantidade
-        const quantidadeTotalDisponivel = distribuicaoData.quantidade - distribuicaoData.quantidade_atribuida_os;
-        const quantidadeSolicitada = funcionarios.reduce((acc, f) => acc + parseInt(f.quantidade_atribuida, 10), 0);
+            if (!cnpj || !numeroPedidoSelecionado || !idAuxiliarSelecionado || !quantidadeItens) {
+                throw { status: 400, message: 'Dados incompletos em um dos itens da O.S.' };
+            }
 
-        if (quantidadeSolicitada > quantidadeTotalDisponivel) {
-            throw { status: 400, message: `A quantidade solicitada (${quantidadeSolicitada}) excede o saldo disponível para esta unidade (${quantidadeTotalDisponivel}).` };
-        }
-
-        // 3. Gerar um ID único para agrupar todas as linhas desta O.S.
-        const idAgrupador = uuidv4();
-        const quantidadeAuxiliarOs = funcionarios.length;
-
-        // 4. Inserir uma linha para CADA funcionário na tabela 'os_produto'
-        const insertPromises = funcionarios.map(func => {
-            const numero_os = `OS-${distribuicaoId}-${func.funcionario_id}-${Date.now()}`; // Lógica de número único
-            const osQuery = `
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
+            const cleanDescricao = descricao === '' ? null : descricao;
+         const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
+            const query = `
                 INSERT INTO os_produto (
-                    numero_pedido_origem, id_agrupador_os, numero_os, nome_auxiliar,
-                    cnpj_cliente, nome_cliente, unidade_cliente, quantidade_auxiliar_os,
-                    quantidade_itens, descricao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+                  id_agrupador_os,
+                    numero_os,
+                    numero_pedido_origem, 
+                    cnpj_cliente, 
+                    nome_cliente, 
+                    unidade_cliente, 
+                    quantidade_auxiliar_os, 
+                    nome_auxiliar,
+                    cpf_auxiliar, -- <-- COLUNA NOVA
+                    quantidade_itens, 
+                    descricao
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `;
+
             const values = [
-                distribuicaoData.numeropedido,
-                idAgrupador,
+                 idAgrupador,
                 numero_os,
-                func.nome_auxiliar, // O nome do funcionário
-                distribuicaoData.cnpj_cliente,
-                distribuicaoData.nomecliente,
-                distribuicaoData.nome_unidade, // A unidade vem da distribuição!
-                quantidadeAuxiliarOs,
-                parseInt(func.quantidade_atribuida, 10), // A quantidade deste funcionário
-                descricao
+                numeroPedidoSelecionado,
+                cnpj.replace(/\D/g, ''),
+                cliente,
+                unidade,
+                parseInt(quantidadeAuxiliarOs, 10),
+                nomeAuxiliar,
+                cleanCpf, // <-- VALOR NOVO
+                parseInt(quantidadeItens, 10),
+                cleanDescricao
             ];
-            return client.query(osQuery, values);
+            
+            return await client.query(query, values);
         });
+
         await Promise.all(insertPromises);
+        
+        await client.query('COMMIT'); 
+        res.status(201).json({ message: 'O.S. cadastradas com sucesso!', createdCount: osArray.length });
 
-        // 5. Atualizar a quantidade atribuída na tabela 'distribuicao_pedido'
-        const novaQuantidadeAtribuida = distribuicaoData.quantidade_atribuida_os + quantidadeSolicitada;
-        await client.query(
-            'UPDATE distribuicao_pedido SET quantidade_atribuida_os = $1 WHERE id = $2',
-            [novaQuantidadeAtribuida, distribuicaoId]
-        );
+    } catch (error) {
+        if (client) {
+            await client.query('ROLLBACK');
+        }
+        
+        // CORRIGINDO OS CÓDIGOS DE ERRO DO MYSQL
+        if (error.code === '23505') { 
+            return res.status(409).json({ message: `Erro: O Número de O.S. já existe.` });
+        }
+        if (error.code === '23503') { 
+            return res.status(404).json({ message: 'Erro: O CNPJ ou o Pedido informado não existem.' });
+        }
+        
+        console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
+        res.status(error.status || 500).json({ message: error.message || 'Erro interno no servidor.' });
 
-        await client.query('COMMIT');
-        res.status(201).json({ message: 'O.S. criada e atribuída com sucesso!', id_agrupador_os: idAgrupador });
-
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('Erro na transação ao criar O.S.:', err);
-        res.status(err.status || 500).json({ message: err.message || 'Erro interno no servidor.' });
     } finally {
-        client.release();
+        if (client) {
+            client.release();
+        }
     }
 });
 
@@ -685,59 +585,39 @@ app.post('/api/os-conciliacao/fracionado', async (req, res) => {
     });
 });
 
-
 app.get('/visualizarpedido', (req, res) => {
-    // ESTA QUERY AGORA RETORNA UMA LINHA PARA CADA UNIDADE DE CADA PEDIDO
+    // A query usa a função TO_CHAR do PostgreSQL para formatar datas
     const query = `
         SELECT 
-            p.numeropedido,
-            p.nomecliente,
-            c.razao_social,
-            p.descricao,
+            p.numeropedido, p.nomecliente, c.razao_social, c.unidade,
+            p.quantidadetotal, p.quantidadeatribuida, p.descricao,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            
-            -- Informações específicas da distribuição (unidade)
-            d.id AS distribuicao_id, -- ID único para cada linha, essencial para o React!
-            d.nome_unidade,
-            d.quantidade,
-            d.quantidade_atribuida_os
-
+            TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
         FROM 
-            distribuicao_pedido AS d -- Começamos pela tabela de distribuição
+            pedido AS p
         INNER JOIN 
-            pedido AS p ON d.pedido_id = p.id -- Juntamos com os dados do pedido principal
-        INNER JOIN 
-            cliente AS c ON p.cnpj_cliente = c.cnpj -- Juntamos com os dados do cliente
+            cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
             p.concluida = false
         ORDER BY 
-            p.numeropedido DESC, d.nome_unidade ASC; -- Agrupa as unidades do mesmo pedido
+            p.data_conclusao DESC;
     `;
 
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar distribuições de pedidos:", err);
+            console.error("Erro ao buscar pedidos de compra:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // O resultado já é uma lista "achatada", perfeita para o frontend
+        // Usar .rows para acessar o array de dados
         return res.status(200).json(data.rows);
     });
 });
 
-
 app.get('/visualizarosproduto', (req, res) => {
-    // ESTA QUERY FOI SIMPLIFICADA PARA RETORNAR UMA LINHA POR O.S. INDIVIDUAL
     const query = `
     SELECT 
-        od.id_os,
-        od.numero_os,
-        od.nome_cliente,
-        c.razao_social,
-        od.unidade_cliente,
-        od.numero_pedido_origem,
-        od.nome_auxiliar,
-        od.quantidade_itens,
-        od.descricao,
+        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
+        od.nome_auxiliar, od.quantidade_itens, od.descricao,
         TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
     FROM 
         os_produto AS od
@@ -745,17 +625,18 @@ app.get('/visualizarosproduto', (req, res) => {
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
         od.concluida = FALSE
-    ORDER BY 
-        od.id_os DESC;
+    ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
         if (err) {
             console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
+        // CORREÇÃO 2: Usar data.rows
         return res.status(200).json(data.rows);
     });
 });
+
 
 
 
