@@ -327,12 +327,6 @@ app.get('/api/pedidos/distribuicoes/por-cliente/:cnpj', async (req, res) => {
 });
 
 
-
-// Adicione a importação do uuid para gerar o ID agrupador
-const { v4: uuidv4 } = require('uuid');
-
-// --- ROTA 1: Buscar as distribuições de um pedido (ESSENCIAL PARA O FRONTEND) ---
-// Esta rota é nova e permite que o frontend liste as unidades de um pedido selecionado.
 app.get('/api/pedidos/:numeroPedido/distribuicoes', async (req, res) => {
     const { numeroPedido } = req.params;
 
