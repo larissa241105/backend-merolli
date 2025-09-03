@@ -328,61 +328,116 @@ app.get('/api/pedidos/distribuicoes/por-cliente/:cnpj', async (req, res) => {
 
 
 
-app.post('/api/os-produto/fracionado', async (req, res) => {
-    const osArray = req.body;
-    if (!Array.isArray(osArray) || osArray.length === 0) {
-        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
-    }
+// Adicione a importação do uuid para gerar o ID agrupador
+const { v4: uuidv4 } = require('uuid');
 
-    const idAgrupador = uuidv4();
-    let client;
+// --- ROTA 1: Buscar as distribuições de um pedido (ESSENCIAL PARA O FRONTEND) ---
+// Esta rota é nova e permite que o frontend liste as unidades de um pedido selecionado.
+app.get('/api/pedidos/:numeroPedido/distribuicoes', async (req, res) => {
+    const { numeroPedido } = req.params;
 
     try {
-        client = await pool.connect();
+        const pedidoResult = await pool.query('SELECT id FROM pedido WHERE numeropedido = $1', [numeroPedido]);
+
+        if (pedidoResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Pedido não encontrado.' });
+        }
+        const pedidoId = pedidoResult.rows[0].id;
+
+        const distribuicoesResult = await pool.query(
+            `SELECT id, nome_unidade, quantidade, quantidade_atribuida_os 
+             FROM distribuicao_pedido 
+             WHERE pedido_id = $1 
+             ORDER BY nome_unidade`,
+            [pedidoId]
+        );
+
+        res.status(200).json(distribuicoesResult.rows);
+    } catch (err) {
+        console.error('Erro ao buscar distribuições:', err);
+        res.status(500).json({ message: 'Erro interno ao buscar distribuições do pedido.' });
+    }
+});
+
+
+// --- ROTA 2: Criar as O.S. fracionadas por funcionário (LÓGICA PRINCIPAL) ---
+// Este endpoint substitui o seu antigo. Ele é projetado para trabalhar com a nova arquitetura.
+app.post('/api/os-produto/fracionado', async (req, res) => {
+    // O frontend enviará o ID da distribuição e a lista de funcionários
+    const { distribuicaoId, descricao, funcionarios } = req.body;
+
+    if (!distribuicaoId || !Array.isArray(funcionarios) || funcionarios.length === 0) {
+        return res.status(400).json({ message: 'ID da Distribuição e ao menos um funcionário são obrigatórios.' });
+    }
+
+    const client = await pool.connect();
+    try {
         await client.query('BEGIN');
 
-        // Pega o distribuicao_id do primeiro item (será o mesmo para todos)
-        const { distribuicao_id } = osArray[0]; 
-        const quantidadeTotalOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
-
-        // 1. Validação: Verifica se a quantidade está disponível na unidade
-        const checkQuery = `
-            SELECT (quantidade - quantidade_atribuida_os) AS disponivel 
-            FROM distribuicao_pedido WHERE id = $1
+        // 1. Obter dados da distribuição e do pedido pai
+        const distQuery = `
+            SELECT dp.*, p.numeropedido, p.cnpj_cliente, p.nomecliente
+            FROM distribuicao_pedido dp
+            JOIN pedido p ON dp.pedido_id = p.id
+            WHERE dp.id = $1;
         `;
-        const checkResult = await client.query(checkQuery, [distribuicao_id]);
-        
-        if (checkResult.rows.length === 0) {
-            throw { status: 404, message: 'Unidade do pedido não encontrada.' };
+        const distResult = await client.query(distQuery, [distribuicaoId]);
+        if (distResult.rows.length === 0) {
+            throw { status: 404, message: 'Distribuição não encontrada.' };
         }
-        if (checkResult.rows[0].disponivel < quantidadeTotalOS) {
-            throw { status: 409, message: `Quantidade indisponível. A unidade possui apenas ${checkResult.rows[0].disponivel} itens disponíveis.` };
+        const distribuicaoData = distResult.rows[0];
+
+        // 2. Validar a quantidade
+        const quantidadeTotalDisponivel = distribuicaoData.quantidade - distribuicaoData.quantidade_atribuida_os;
+        const quantidadeSolicitada = funcionarios.reduce((acc, f) => acc + parseInt(f.quantidade_atribuida, 10), 0);
+
+        if (quantidadeSolicitada > quantidadeTotalDisponivel) {
+            throw { status: 400, message: `A quantidade solicitada (${quantidadeSolicitada}) excede o saldo disponível para esta unidade (${quantidadeTotalDisponivel}).` };
         }
 
-        // 2. Insere cada O.S. na tabela os_produto (seu código original)
-        const insertPromises = osArray.map(async osData => {
-            // ... (seu código de INSERT na os_produto permanece o mesmo) ...
-            // Apenas garanta que ele receba e use os campos necessários
+        const idAgrupador = uuidv4();
+        const quantidadeAuxiliarOs = funcionarios.length;
+
+        const insertPromises = funcionarios.map(func => {
+            const numero_os = `OS-${distribuicaoId}-${func.funcionario_id}-${Date.now()}`; // Lógica de número único
+            const osQuery = `
+                INSERT INTO os_produto (
+                    numero_pedido_origem, id_agrupador_os, numero_os, nome_auxiliar,
+                    cnpj_cliente, nome_cliente, unidade_cliente, quantidade_auxiliar_os,
+                    quantidade_itens, descricao
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+            `;
+            const values = [
+                distribuicaoData.numeropedido,
+                idAgrupador,
+                numero_os,
+                func.nome_auxiliar, // O nome do funcionário
+                distribuicaoData.cnpj_cliente,
+                distribuicaoData.nomecliente,
+                distribuicaoData.nome_unidade, // A unidade vem da distribuição!
+                quantidadeAuxiliarOs,
+                parseInt(func.quantidade_atribuida, 10), // A quantidade deste funcionário
+                descricao
+            ];
+            return client.query(osQuery, values);
         });
         await Promise.all(insertPromises);
-        
-        // 3. ATUALIZA A CONTAGEM na tabela de distribuição
-        const updateQuery = `
-            UPDATE distribuicao_pedido 
-            SET quantidade_atribuida_os = quantidade_atribuida_os + $1 
-            WHERE id = $2
-        `;
-        await client.query(updateQuery, [quantidadeTotalOS, distribuicao_id]);
 
-        await client.query('COMMIT'); 
-        res.status(201).json({ message: 'O.S. cadastradas e quantidade atribuída com sucesso!', createdCount: osArray.length });
+        const novaQuantidadeAtribuida = distribuicaoData.quantidade_atribuida_os + quantidadeSolicitada;
+        await client.query(
+            'UPDATE distribuicao_pedido SET quantidade_atribuida_os = $1 WHERE id = $2',
+            [novaQuantidadeAtribuida, distribuicaoId]
+        );
 
-    } catch (error) {
-        if (client) await client.query('ROLLBACK');
-        console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
-        res.status(error.status || 500).json({ message: error.message || 'Erro interno no servidor.' });
+        await client.query('COMMIT');
+        res.status(201).json({ message: 'O.S. criada e atribuída com sucesso!', id_agrupador_os: idAgrupador });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Erro na transação ao criar O.S.:', err);
+        res.status(err.status || 500).json({ message: err.message || 'Erro interno no servidor.' });
     } finally {
-        if (client) client.release();
+        client.release();
     }
 });
 
