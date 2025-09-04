@@ -406,87 +406,69 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
 
 
-app.post('/api/os-dados/fracionado', async (req, res) => {
+   app.post('/api/os-dados/fracionado', async (req, res) => {
     const osArray = req.body;
     if (!Array.isArray(osArray) || osArray.length === 0) {
-        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
+        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S. de Dados.' });
+    }
+
+    const { pedidoUnidadeId } = osArray[0];
+    if (!pedidoUnidadeId) {
+        return res.status(400).json({ message: 'A unidade do pedido de origem (pedidoUnidadeId) não foi especificada.' });
     }
 
     const idAgrupador = uuidv4();
-    let client;
+    const client = await pool.connect();
 
     try {
-        client = await pool.connect();
         await client.query('BEGIN');
 
+        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
+
         const insertPromises = osArray.map(async osData => {
-            // ALTERADO: Adicionado 'cpfAuxiliar' na desestruturação
             const {
                 cnpj, cliente, unidade, numeroPedidoSelecionado,
                 quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
-                cpfAuxiliar, // <-- NOVO
-                quantidadeItens, descricao
+                cpfAuxiliar, quantidadeItens, descricao
             } = osData;
 
-            if (!cnpj || !numeroPedidoSelecionado || !idAuxiliarSelecionado || !quantidadeItens) {
-                throw { status: 400, message: 'Dados incompletos em um dos itens da O.S.' };
-            }
-
-            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
-            const cleanDescricao = descricao === '' ? null : descricao;
-            // NOVO: Limpa o CPF para garantir que só tenha números (opcional, mas recomendado)
+            const numero_os = `${numeroPedidoSelecionado}_DADOS_${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
-
-            // ALTERADO: Query SQL com a nova coluna 'cpf_auxiliar'
+            
+            // Query ajustada para a tabela os_dados e com todas as colunas
             const query = `
                 INSERT INTO os_dados (
-                    id_agrupador_os,
-                    numero_os,
-                    numero_pedido_origem, 
-                    cnpj_cliente, 
-                    nome_cliente, 
-                    unidade_cliente, 
-                    quantidade_auxiliar_os, 
-                    nome_auxiliar,
-                    cpf_auxiliar, -- <-- COLUNA NOVA
-                    quantidade_itens, 
-                    descricao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
+                    unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
+                    quantidade_itens, descricao, pedido_unidade_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `;
-
-            // ALTERADO: Array de valores com o novo campo 'cleanCpf'
             const values = [
-                idAgrupador,
-                numero_os,
-                numeroPedidoSelecionado,
-                cnpj.replace(/\D/g, ''),
-                cliente,
-                unidade,
-                parseInt(quantidadeAuxiliarOs, 10),
-                nomeAuxiliar,
-                cleanCpf, // <-- VALOR NOVO
-                parseInt(quantidadeItens, 10),
-                cleanDescricao
+                idAgrupador, numero_os, numeroPedidoSelecionado, cnpj.replace(/\D/g, ''), cliente,
+                unidade, parseInt(quantidadeAuxiliarOs, 10), nomeAuxiliar, cleanCpf,
+                parseInt(quantidadeItens, 10), descricao, pedidoUnidadeId
             ];
             
-            return await client.query(query, values);
+            return client.query(query, values);
         });
-
-        await Promise.all(insertPromises);
         
-        await client.query('COMMIT'); 
-        res.status(201).json({ message: 'O.S. cadastradas com sucesso!', createdCount: osArray.length });
+        await Promise.all(insertPromises);
+
+        // ATUALIZA O NOVO CONTADOR
+        const updateQuery = `
+            UPDATE pedido_unidades 
+            SET quantidade_atribuida_os_dados = quantidade_atribuida_os_dados + $1
+            WHERE id = $2;
+        `;
+        await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
+
+        await client.query('COMMIT');
+        res.status(201).json({ message: 'O.S. de Dados cadastradas com sucesso!', createdCount: osArray.length });
 
     } catch (error) {
-        if (client) {
-            await client.query('ROLLBACK');
-        }
-        
-        // ... (bloco de tratamento de erro permanece o mesmo)
-        
-        console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
-        res.status(error.status || 500).json({ message: error.message || 'Erro interno no servidor.' });
-
+        await client.query('ROLLBACK');
+        console.error("ERRO NA TRANSAÇÃO (OS DADOS), ROLLBACK REALIZADO:", error);
+        res.status(500).json({ message: 'Erro interno ao cadastrar O.S. de Dados.' });
     } finally {
         if (client) {
             client.release();
