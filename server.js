@@ -486,91 +486,77 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
 
 
-app.post('/api/os-conciliacao/fracionado', async (req, res) => {
+      app.post('/api/os-conciliacao/fracionado', async (req, res) => {
     const osArray = req.body;
+
     if (!Array.isArray(osArray) || osArray.length === 0) {
         return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
+    const { pedidoUnidadeId } = osArray[0]; 
+    if (!pedidoUnidadeId) {
+        return res.status(400).json({ message: 'A unidade do pedido de origem (pedidoUnidadeId) não foi especificada.' });
+    }
+
     const idAgrupador = uuidv4();
-    let client;
+    const client = await pool.connect();
 
     try {
-        client = await pool.connect(); // Obtém um cliente do pool
-        await client.query('BEGIN'); // Inicia a transação
+        await client.query('BEGIN');
+
+        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
 
         const insertPromises = osArray.map(async osData => {
+            // CORREÇÃO 1: Adicionar 'quantidade_auxiliar_os' à desestruturação
             const {
-                 cnpj, cliente, unidade, numeroPedidoSelecionado,
-                quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
-                cpfAuxiliar, // <-- NOVO
-                quantidadeItens, descricao
+                cnpj, cliente, unidade, numeroPedidoSelecionado,
+                idAuxiliarSelecionado, nomeAuxiliar, cpfAuxiliar,
+                quantidadeItens, descricao, quantidade_auxiliar_os 
             } = osData;
 
-            if (!cnpj || !numeroPedidoSelecionado || !idAuxiliarSelecionado || !quantidadeItens) {
-                throw { status: 400, message: 'Dados incompletos em um dos itens da O.S.' };
-            }
-
             const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
-            const cleanDescricao = descricao === '' ? null : descricao;
-            // NOVO: Limpa o CPF para garantir que só tenha números (opcional, mas recomendado)
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
-
+            
+            // CORREÇÃO 2: Adicionar a coluna 'quantidade_auxiliar_os' na query
             const query = `
                 INSERT INTO os_conciliacao (
-                 id_agrupador_os,
-                    numero_os,
-                    numero_pedido_origem, 
-                    cnpj_cliente, 
-                    nome_cliente, 
-                    unidade_cliente, 
-                    quantidade_auxiliar_os, 
-                    nome_auxiliar,
-                    cpf_auxiliar, -- <-- COLUNA NOVA
-                    quantidade_itens, 
-                    descricao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
+                    unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
+                    quantidade_itens, descricao, pedido_unidade_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `;
-
-            // ALTERADO: Array de valores com o novo campo 'cleanCpf'
+            // CORREÇÃO 3: Adicionar o valor de 'quantidade_auxiliar_os' no array de valores
             const values = [
-                idAgrupador,
-                numero_os,
-                numeroPedidoSelecionado,
-                cnpj.replace(/\D/g, ''),
-                cliente,
-                unidade,
-                parseInt(quantidadeAuxiliarOs, 10),
-                nomeAuxiliar,
-                cleanCpf, // <-- VALOR NOVO
-                parseInt(quantidadeItens, 10),
-                cleanDescricao
+                idAgrupador, numero_os, numeroPedidoSelecionado, cnpj.replace(/\D/g, ''), cliente,
+                unidade, parseInt(quantidade_auxiliar_os, 10), nomeAuxiliar, cleanCpf, 
+                parseInt(quantidadeItens, 10), descricao, pedidoUnidadeId
             ];
             
-            return await client.query(query, values);
+            return client.query(query, values);
         });
 
         await Promise.all(insertPromises);
         
+        const updateQuery = `
+            UPDATE pedido_unidades 
+            SET quantidade_atribuida_os = quantidade_atribuida_os + $1
+            WHERE id = $2;
+        `;
+        await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
+
         await client.query('COMMIT'); 
-        res.status(201).json({ message: 'O.S. cadastradas com sucesso!', createdCount: osArray.length });
+
+        res.status(201).json({ 
+            message: 'O.S. cadastradas e pedido atualizado com sucesso!', 
+            createdCount: osArray.length 
+        });
 
     } catch (error) {
-        if (client) {
-            await client.query('ROLLBACK');
-        }
-        
-        // CORRIGINDO OS CÓDIGOS DE ERRO DO MYSQL
-        if (error.code === '23505') { 
-            return res.status(409).json({ message: `Erro: O Número de O.S. já existe.` });
-        }
-        if (error.code === '23503') { 
-            return res.status(404).json({ message: 'Erro: O CNPJ ou o Pedido informado não existem.' });
-        }
-        
+        await client.query('ROLLBACK');
         console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
-        res.status(error.status || 500).json({ message: error.message || 'Erro interno no servidor.' });
-
+        res.status(error.status || 500).json({ 
+            message: error.message || 'Erro interno ao cadastrar Ordens de Serviço.' 
+        });
     } finally {
         if (client) {
             client.release();
@@ -683,50 +669,60 @@ app.get('/visualizarosproduto', (req, res) => {
 
 
 app.get('/visualizarosdados', (req, res) => {
-   const query = `
+    const query = `
     SELECT 
-        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
-        od.nome_auxiliar, od.quantidade_itens, od.descricao,
+        od.numero_os, 
+        od.id_os, 
+        od.nome_cliente, 
+        c.razao_social,
+        od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
+        od.nome_auxiliar, 
+        od.quantidade_itens, 
+        od.descricao,
         TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
     FROM 
         os_dados AS od
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = FALSE
+        od.concluida = '0' -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
+            console.error("Erro no servidor ao buscar 'os_dados' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // CORREÇÃO 2: Usar data.rows
         return res.status(200).json(data.rows);
     });
 });
 
 
 app.get('/visualizarosconciliacao', (req, res) => {
-   const query = `
+    const query = `
     SELECT 
-        od.numero_os, od.id_os, od.nome_cliente, c.razao_social,
-        od.nome_auxiliar, od.quantidade_itens, od.descricao,
+        od.numero_os, 
+        od.id_os, 
+        od.nome_cliente, 
+        c.razao_social,
+        od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
+        od.nome_auxiliar, 
+        od.quantidade_itens, 
+        od.descricao,
         TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
     FROM 
         os_conciliacao AS od
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = FALSE
+        od.concluida = '0' -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro no servidor ao buscar 'os_produto' em aberto:", err);
+            console.error("Erro no servidor ao buscar 'os_conciliacao' em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // CORREÇÃO 2: Usar data.rows
         return res.status(200).json(data.rows);
     });
 });
