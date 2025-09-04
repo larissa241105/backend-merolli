@@ -353,7 +353,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 quantidadeItens, descricao, quantidade_auxiliar_os 
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_${unidade.substring(0,3).toUpperCase()}_${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
             // CORREÇÃO 2: Adicionar a coluna 'quantidade_auxiliar_os' na query
@@ -670,6 +670,7 @@ app.get('/visualizarosproduto', (req, res) => {
         od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
         od.nome_auxiliar, 
         od.quantidade_itens, 
+        od.unidade,
         od.descricao,
         TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
     FROM 
