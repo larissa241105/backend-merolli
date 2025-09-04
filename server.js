@@ -596,7 +596,7 @@ app.get('/visualizarpedido', (req, res) => {
             c.razao_social,
             pu.id AS unidade_id, -- ID único da linha da unidade, para usar como "key" no React
             pu.unidade_nome,
-            pu.quantidade,
+            pu.quantidade
         FROM 
             pedido AS p
         INNER JOIN 
