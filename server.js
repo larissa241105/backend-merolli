@@ -282,6 +282,7 @@ app.post('/api/pedidos', async (req, res) => {
 
 
 
+// GET /api/clientes/details-and-orders/:cnpj
 app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
     const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
     if (!cnpjLimpo) return res.status(400).json({ message: 'CNPJ inválido.' });
@@ -289,22 +290,29 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
     try {
         const responseData = { cliente: null, pedidos: [] };
 
-        // 1. Busca Cliente (sem alteração)
         const clienteQuery = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = $1';
         const clienteResults = await pool.query(clienteQuery, [cnpjLimpo]);
+
         if (clienteResults.rows.length === 0) {
             return res.status(404).json({ message: 'Cliente não encontrado.' });
         }
         responseData.cliente = clienteResults.rows[0];
 
-        // 2. VOLTAMOS À QUERY SIMPLES: Lendo o contador diretamente
+        // A QUERY INTELIGENTE QUE CALCULA TUDO EM TEMPO REAL
+        // Assumindo que você tenha as tabelas 'os_produto', 'os_dados' e 'os_conciliacao'
         const pedidosUnidadesQuery = `
             SELECT 
                 p.numeropedido,
                 pu.id AS unidade_id,
                 pu.unidade_nome,
                 pu.quantidade AS quantidade_total_unidade,
-                pu.quantidade_atribuida_os -- Lendo o valor direto da coluna
+                
+                COALESCE((SELECT SUM(os.quantidade_itens) FROM os_produto os WHERE os.pedido_unidade_id = pu.id), 0) +
+                COALESCE((SELECT SUM(os_d.quantidade_itens) FROM os_dados os_d WHERE os_d.pedido_unidade_id = pu.id), 0) +
+                COALESCE((SELECT SUM(os_c.quantidade_itens) FROM os_conciliacao os_c WHERE os_c.pedido_unidade_id = pu.id), 0)
+                
+                AS total_atribuido
+
             FROM pedido AS p
             JOIN pedido_unidades AS pu ON p.id = pu.pedido_id
             WHERE p.cnpj_cliente = $1 AND p.concluida = false
@@ -312,9 +320,8 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
         `;
         const pedidosResults = await pool.query(pedidosUnidadesQuery, [cnpjLimpo]);
         
-        responseData.pedidos = pedidosResults.rows.filter(p => 
-            p.quantidade_total_unidade > p.quantidade_atribuida_os
-        );
+        // O frontend receberá o total e o total já atribuído
+        responseData.pedidos = pedidosResults.rows;
 
         res.status(200).json(responseData);
 
@@ -325,38 +332,31 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
 });
 
 
+
+   // POST /api/os-produto/fracionado
 app.post('/api/os-produto/fracionado', async (req, res) => {
     const osArray = req.body;
-
     if (!Array.isArray(osArray) || osArray.length === 0) {
         return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
-    }
-
-    const { pedidoUnidadeId } = osArray[0]; 
-    if (!pedidoUnidadeId) {
-        return res.status(400).json({ message: 'A unidade do pedido de origem (pedidoUnidadeId) não foi especificada.' });
     }
 
     const idAgrupador = uuidv4();
     const client = await pool.connect();
 
     try {
+        // Transação ainda é útil para garantir que todas as O.S. do grupo sejam inseridas juntas
         await client.query('BEGIN');
 
-        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
-
         const insertPromises = osArray.map(async osData => {
-            // CORREÇÃO 1: Adicionar 'quantidade_auxiliar_os' à desestruturação
             const {
                 cnpj, cliente, unidade, numeroPedidoSelecionado,
-                idAuxiliarSelecionado, nomeAuxiliar, cpfAuxiliar,
-                quantidadeItens, descricao, quantidade_auxiliar_os 
+                quantidade_auxiliar_os, idAuxiliarSelecionado, nomeAuxiliar,
+                cpfAuxiliar, quantidadeItens, descricao, pedidoUnidadeId
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_${unidade.substring(0,3).toUpperCase()}_${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
-            // CORREÇÃO 2: Adicionar a coluna 'quantidade_auxiliar_os' na query
             const query = `
                 INSERT INTO os_produto (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
@@ -364,38 +364,23 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                     quantidade_itens, descricao, pedido_unidade_id
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `;
-            // CORREÇÃO 3: Adicionar o valor de 'quantidade_auxiliar_os' no array de valores
             const values = [
                 idAgrupador, numero_os, numeroPedidoSelecionado, cnpj.replace(/\D/g, ''), cliente,
-                unidade, parseInt(quantidade_auxiliar_os, 10), nomeAuxiliar, cleanCpf, 
+                unidade, parseInt(quantidade_auxiliar_os, 10), nomeAuxiliar, cleanCpf,
                 parseInt(quantidadeItens, 10), descricao, pedidoUnidadeId
             ];
             
             return client.query(query, values);
         });
-
-        await Promise.all(insertPromises);
         
-        const updateQuery = `
-            UPDATE pedido_unidades 
-            SET quantidade_atribuida_os = quantidade_atribuida_os + $1
-            WHERE id = $2;
-        `;
-        await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
-
+        await Promise.all(insertPromises);
         await client.query('COMMIT'); 
-
-        res.status(201).json({ 
-            message: 'O.S. cadastradas e pedido atualizado com sucesso!', 
-            createdCount: osArray.length 
-        });
+        res.status(201).json({ message: 'O.S. cadastradas com sucesso!', createdCount: osArray.length });
 
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
-        res.status(error.status || 500).json({ 
-            message: error.message || 'Erro interno ao cadastrar Ordens de Serviço.' 
-        });
+        res.status(error.status || 500).json({ message: error.message || 'Erro interno ao cadastrar Ordens de Serviço.' });
     } finally {
         if (client) {
             client.release();
@@ -1151,49 +1136,22 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
 });
 
 
-app.delete('/api/os-produto/:id', async (req, res) => {
+// DELETE /api/os-produto/:id
+app.delete('/api/os-produto/:id', (req, res) => {
     const { id } = req.params;
-    const client = await pool.connect();
+    const query = 'DELETE FROM os_produto WHERE id_os = $1';
 
-    try {
-        await client.query('BEGIN'); // Inicia a transação
-
-        // 1. Primeiro, busca a O.S. para saber a quantidade e qual pedido-unidade atualizar
-        const selectQuery = 'SELECT pedido_unidade_id, quantidade_itens FROM os_produto WHERE id_os = $1';
-        const osResult = await client.query(selectQuery, [id]);
-
-        if (osResult.rows.length === 0) {
-            await client.query('ROLLBACK');
+    pool.query(query, [id], (err, result) => {
+        if (err) {
+            console.error("Erro ao excluir a O.S.:", err);
+            return res.status(500).json({ message: "Erro interno no servidor." });
+        }
+        if (result.rowCount === 0) {
             return res.status(404).json({ message: "Ordem de Serviço não encontrada." });
         }
-
-        const osParaDeletar = osResult.rows[0];
-        const { pedido_unidade_id, quantidade_itens } = osParaDeletar;
-
-        // 2. Atualiza o contador, DECREMENTANDO a quantidade
-        const updateQuery = `
-            UPDATE pedido_unidades
-            SET quantidade_atribuida_os = quantidade_atribuida_os - $1
-            WHERE id = $2;
-        `;
-        await client.query(updateQuery, [quantidade_itens, pedido_unidade_id]);
-
-        // 3. Agora, exclui a O.S. de fato
-        const deleteQuery = 'DELETE FROM os_produto WHERE id_os = $1';
-        await client.query(deleteQuery, [id]);
-        
-        await client.query('COMMIT'); // Finaliza a transação com sucesso
-        res.status(200).json({ message: "Ordem de Serviço excluída e saldo do pedido atualizado!" });
-
-    } catch (err) {
-        await client.query('ROLLBACK'); // Desfaz tudo em caso de erro
-        console.error("Erro ao excluir a O.S. (transação revertida):", err);
-        return res.status(500).json({ message: "Erro interno no servidor." });
-    } finally {
-        client.release();
-    }
+        res.status(200).json({ message: "Ordem de Serviço excluída com sucesso!" });
+    });
 });
-
 
 
 app.get('/api/os-dados/:id_os', (req, res) => {
