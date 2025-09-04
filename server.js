@@ -670,7 +670,6 @@ app.get('/visualizarosproduto', (req, res) => {
         od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
         od.nome_auxiliar, 
         od.quantidade_itens, 
-        od.unidade,
         od.descricao,
         TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada
     FROM 
