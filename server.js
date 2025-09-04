@@ -408,11 +408,12 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
    app.post('/api/os-dados/fracionado', async (req, res) => {
     const osArray = req.body;
+
     if (!Array.isArray(osArray) || osArray.length === 0) {
-        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S. de Dados.' });
+        return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
-    const { pedidoUnidadeId } = osArray[0];
+    const { pedidoUnidadeId } = osArray[0]; 
     if (!pedidoUnidadeId) {
         return res.status(400).json({ message: 'A unidade do pedido de origem (pedidoUnidadeId) não foi especificada.' });
     }
@@ -426,16 +427,17 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
         const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
 
         const insertPromises = osArray.map(async osData => {
+            // CORREÇÃO 1: Adicionar 'quantidade_auxiliar_os' à desestruturação
             const {
                 cnpj, cliente, unidade, numeroPedidoSelecionado,
-                quantidadeAuxiliarOs, idAuxiliarSelecionado, nomeAuxiliar,
-                cpfAuxiliar, quantidadeItens, descricao
+                idAuxiliarSelecionado, nomeAuxiliar, cpfAuxiliar,
+                quantidadeItens, descricao, quantidade_auxiliar_os 
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_DADOS_${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
-            // Query ajustada para a tabela os_dados e com todas as colunas
+            // CORREÇÃO 2: Adicionar a coluna 'quantidade_auxiliar_os' na query
             const query = `
                 INSERT INTO os_dados (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
@@ -443,32 +445,38 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                     quantidade_itens, descricao, pedido_unidade_id
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             `;
+            // CORREÇÃO 3: Adicionar o valor de 'quantidade_auxiliar_os' no array de valores
             const values = [
                 idAgrupador, numero_os, numeroPedidoSelecionado, cnpj.replace(/\D/g, ''), cliente,
-                unidade, parseInt(quantidadeAuxiliarOs, 10), nomeAuxiliar, cleanCpf,
+                unidade, parseInt(quantidade_auxiliar_os, 10), nomeAuxiliar, cleanCpf, 
                 parseInt(quantidadeItens, 10), descricao, pedidoUnidadeId
             ];
             
             return client.query(query, values);
         });
-        
-        await Promise.all(insertPromises);
 
-        // ATUALIZA O NOVO CONTADOR
+        await Promise.all(insertPromises);
+        
         const updateQuery = `
             UPDATE pedido_unidades 
-            SET quantidade_atribuida_os_dados = quantidade_atribuida_os_dados + $1
+            SET quantidade_atribuida_os = quantidade_atribuida_os + $1
             WHERE id = $2;
         `;
         await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
 
-        await client.query('COMMIT');
-        res.status(201).json({ message: 'O.S. de Dados cadastradas com sucesso!', createdCount: osArray.length });
+        await client.query('COMMIT'); 
+
+        res.status(201).json({ 
+            message: 'O.S. cadastradas e pedido atualizado com sucesso!', 
+            createdCount: osArray.length 
+        });
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error("ERRO NA TRANSAÇÃO (OS DADOS), ROLLBACK REALIZADO:", error);
-        res.status(500).json({ message: 'Erro interno ao cadastrar O.S. de Dados.' });
+        console.error("ERRO NA TRANSAÇÃO, ROLLBACK REALIZADO:", error);
+        res.status(error.status || 500).json({ 
+            message: error.message || 'Erro interno ao cadastrar Ordens de Serviço.' 
+        });
     } finally {
         if (client) {
             client.release();
