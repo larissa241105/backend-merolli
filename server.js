@@ -8,15 +8,31 @@
         const { v4: uuidv4 } = require('uuid');
         const app = express();
         const port = 3001; 
+       // =================================================================
+        // ||                       MIDDLEWARES                           ||
         // =================================================================
-        // ||                       MIDDLEWARES                         ||
-        // =================================================================
+
+        // Lista de URLs que têm permissão para acessar seu backend
+        const whiteList = [
+            'https://www.merollisoft.com.br',
+            'https://merollisoft.com.br',
+            'http://localhost:3000', // Para desenvolvimento local (se usar a porta 3000)
+            'http://localhost:5173'  // Para desenvolvimento local (se usar Vite)
+        ];
+
         const corsOptions = {
-        origin: 'https://merollisoft.com.br'
+            origin: function (origin, callback) {
+                // Permite a requisição se a origem estiver na lista branca ou se for uma requisição sem origem (como um app mobile ou Postman)
+                if (whiteList.indexOf(origin) !== -1 || !origin) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('Acesso não permitido pela política de CORS'));
+                }
+            }
         };
 
         app.use(cors(corsOptions));
-            app.use(express.json());
+        app.use(express.json());
 
         // =================================================================
         // ||                  CONFIGURAÇÃO DO BANCO DE DADOS             ||
