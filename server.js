@@ -300,19 +300,15 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
 
         // A QUERY INTELIGENTE QUE CALCULA TUDO EM TEMPO REAL
         // Assumindo que você tenha as tabelas 'os_produto', 'os_dados' e 'os_conciliacao'
-        const pedidosUnidadesQuery = `
+          const pedidosUnidadesQuery = `
             SELECT 
                 p.numeropedido,
                 pu.id AS unidade_id,
                 pu.unidade_nome,
                 pu.quantidade AS quantidade_total_unidade,
-                
-                COALESCE((SELECT SUM(os.quantidade_itens) FROM os_produto os WHERE os.pedido_unidade_id = pu.id), 0) +
-                COALESCE((SELECT SUM(os_d.quantidade_itens) FROM os_dados os_d WHERE os_d.pedido_unidade_id = pu.id), 0) +
-                COALESCE((SELECT SUM(os_c.quantidade_itens) FROM os_conciliacao os_c WHERE os_c.pedido_unidade_id = pu.id), 0)
-                
-                AS total_atribuido
-
+                pu.quantidade_atribuida_os,
+                pu.quantidade_atribuida_os_dados,
+                pu.quantidade_atribuida_os_conciliacao
             FROM pedido AS p
             JOIN pedido_unidades AS pu ON p.id = pu.pedido_id
             WHERE p.cnpj_cliente = $1 AND p.concluida = false
@@ -320,9 +316,7 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
         `;
         const pedidosResults = await pool.query(pedidosUnidadesQuery, [cnpjLimpo]);
         
-        // O frontend receberá o total e o total já atribuído
         responseData.pedidos = pedidosResults.rows;
-
         res.status(200).json(responseData);
 
     } catch (err) {
@@ -333,19 +327,19 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
 
 
 
-   // POST /api/os-produto/fracionado
 app.post('/api/os-produto/fracionado', async (req, res) => {
     const osArray = req.body;
     if (!Array.isArray(osArray) || osArray.length === 0) {
         return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
-    const idAgrupador = uuidv4();
+    const { pedidoUnidadeId } = osArray[0];
     const client = await pool.connect();
 
     try {
-        // Transação ainda é útil para garantir que todas as O.S. do grupo sejam inseridas juntas
         await client.query('BEGIN');
+
+        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
 
         const insertPromises = osArray.map(async osData => {
             const {
@@ -391,18 +385,19 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
 
 
-app.post('/api/os-dados/fracionado', async (req, res) => {
+   app.post('/api/os-dados/fracionado', async (req, res) => {
     const osArray = req.body;
     if (!Array.isArray(osArray) || osArray.length === 0) {
         return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
-    const idAgrupador = uuidv4();
+    const { pedidoUnidadeId } = osArray[0];
     const client = await pool.connect();
 
     try {
-        // Transação ainda é útil para garantir que todas as O.S. do grupo sejam inseridas juntas
         await client.query('BEGIN');
+
+        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
 
         const insertPromises = osArray.map(async osData => {
             const {
@@ -447,17 +442,19 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
 
 
 
-    app.post('/api/os-conciliacao/fracionado', async (req, res) => {
+   app.post('/api/os-dados/fracionado', async (req, res) => {
     const osArray = req.body;
     if (!Array.isArray(osArray) || osArray.length === 0) {
         return res.status(400).json({ message: 'O corpo da requisição deve ser um array de O.S.' });
     }
 
-    const idAgrupador = uuidv4();
+    const { pedidoUnidadeId } = osArray[0];
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
+
+        const totalItensNestaOS = osArray.reduce((acc, os) => acc + parseInt(os.quantidadeItens, 10), 0);
 
         const insertPromises = osArray.map(async osData => {
             const {
@@ -470,7 +467,7 @@ app.post('/api/os-dados/fracionado', async (req, res) => {
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
             const query = `
-                INSERT INTO os_conciliacao (
+                INSERT INTO os_dados (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
                     unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
                     quantidade_itens, descricao, pedido_unidade_id
@@ -571,7 +568,7 @@ app.get('/visualizarpedido', (req, res) => {
 
 
 
-app.get('/visualizarosproduto', (req, res) => {
+    app.get('/visualizarosproduto', (req, res) => {
     const query = `
     SELECT 
         od.numero_os, 
