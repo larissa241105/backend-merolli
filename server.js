@@ -16,6 +16,8 @@
         const whiteList = [
             'https://www.merollisoft.com.br',
             'https://merollisoft.com.br',
+            'http://merollisoft.com.br',
+            'http://www.merollisoft.com.br',
             'http://localhost:3000', // Para desenvolvimento local (se usar a porta 3000)
             'http://localhost:5173'  // Para desenvolvimento local (se usar Vite)
         ];
@@ -25,7 +27,6 @@
         const corsOptions = {
             origin: function (origin, callback) {
                 // ADICIONE ESTA LINHA:
-                console.log('Requisição recebida da origem:', origin);
 
                 if (whiteList.indexOf(origin) !== -1 || !origin) {
                     callback(null, true);
