@@ -380,7 +380,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cpfAuxiliar, quantidadeItens, descricao
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_PROD_${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
             const query = `
@@ -470,7 +470,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cpfAuxiliar, quantidadeItens, descricao
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_DAD_${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
             const query = `
@@ -559,7 +559,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cpfAuxiliar, quantidadeItens, descricao
             } = osData;
 
-            const numero_os = `${numeroPedidoSelecionado}_CONC_${idAuxiliarSelecionado}`;
+            const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
             
             const query = `
