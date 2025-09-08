@@ -20,9 +20,13 @@
             'http://localhost:5173'  // Para desenvolvimento local (se usar Vite)
         ];
 
+      // No seu arquivo server.js
+
         const corsOptions = {
             origin: function (origin, callback) {
-                // Permite a requisição se a origem estiver na lista branca ou se for uma requisição sem origem (como um app mobile ou Postman)
+                // ADICIONE ESTA LINHA:
+                console.log('Requisição recebida da origem:', origin);
+
                 if (whiteList.indexOf(origin) !== -1 || !origin) {
                     callback(null, true);
                 } else {
