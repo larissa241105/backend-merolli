@@ -483,7 +483,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
         // CORREÇÃO 2: Reintroduz o UPDATE para o contador específico de dados
         const updateQuery = `
             UPDATE pedido_unidades 
-            SET quantidade_atribuida_os = quantidade_atribuida_os + $1
+            SET quantidade_atribuida_os_dados = quantidade_atribuida_os_dados + $1
             WHERE id = $2;
         `;
         await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
@@ -572,7 +572,7 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
         // CORREÇÃO 2: Reintroduz o UPDATE para o contador específico de conciliacao
         const updateQuery = `
             UPDATE pedido_unidades 
-            SET quantidade_atribuida_os = quantidade_atribuida_os + $1
+            SET quantidade_atribuida_os_conciliacao = quantidade_atribuida_os_conciliacao + $1
             WHERE id = $2;
         `;
         await client.query(updateQuery, [totalItensNestaOS, pedidoUnidadeId]);
