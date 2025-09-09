@@ -233,6 +233,7 @@ app.post('/api/pedidos', async (req, res) => {
         descricao, 
         precoUnidade, 
         precoTotal,
+        quantidadeTotal,
         unidades 
     } = req.body;
 
@@ -260,13 +261,13 @@ app.post('/api/pedidos', async (req, res) => {
         const pedidoQuery = `
             INSERT INTO pedido (
                 numeropedido, nomecliente, cnpj_cliente, nomeresponsavel, contatoresponsavel, 
-                descricao, precounidade, precototal
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                descricao, precounidade, precototal, quantidadetotal
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id;
         `;
         const pedidoValues = [
             novoNumeroPedido, cliente, cnpj_cliente.replace(/\D/g, ''), nomeResponsavel, 
-            contatoResponsavel, descricao, precoUnidade, precoTotal
+            contatoResponsavel, descricao, precoUnidade, precoTotal, quantidadeTotal
         ];
         
         const pedidoResult = await client.query(pedidoQuery, pedidoValues);
