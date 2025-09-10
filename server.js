@@ -659,6 +659,7 @@ app.get('/visualizarpedido', (req, res) => {
             p.numeropedido, 
             p.nomecliente, 
             p.descricao,
+            p.quantidadetotal,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             c.razao_social,
             pu.id AS unidade_id, -- ID único da linha da unidade, para usar como "key" no React
