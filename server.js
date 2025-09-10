@@ -690,9 +690,11 @@ app.get('/visualizarpedido', (req, res) => {
     app.get('/visualizarosproduto', (req, res) => {
     const query = `
     SELECT 
-        od.numero_os, 
+       od.numero_os, 
         od.id_os, 
         od.nome_cliente, 
+        od.numero_pedido_origem,
+        od.cnpj_cliente,
         c.razao_social,
         od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
         od.nome_auxiliar, 
@@ -725,6 +727,8 @@ app.get('/visualizarosdados', (req, res) => {
         od.numero_os, 
         od.id_os, 
         od.nome_cliente, 
+        od.numero_pedido_origem,
+        od.cnpj_cliente,
         c.razao_social,
         od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
         od.nome_auxiliar, 
@@ -755,6 +759,8 @@ app.get('/visualizarosconciliacao', (req, res) => {
         od.numero_os, 
         od.id_os, 
         od.nome_cliente, 
+        od.numero_pedido_origem,
+        od.cnpj_cliente,
         c.razao_social,
         od.unidade_cliente, -- <<< ADICIONADO: Traz o nome da unidade
         od.nome_auxiliar, 
