@@ -658,6 +658,7 @@ app.get('/visualizarpedido', (req, res) => {
         SELECT 
             p.numeropedido, p.nomecliente, c.razao_social, p.descricao,
             pu.unidade_nome, pu.quantidade, pu.id as unidade_id,
+            p.cnpj_cliente,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada
         FROM 
             pedido AS p
@@ -1657,6 +1658,7 @@ app.get('/pedidos-concluidos', (req, res) => {
     const query = `
         SELECT 
             p.numeropedido, p.nomecliente, c.razao_social, pu.unidade_nome,
+            p.cnpj_cliente,
             p.quantidadetotal, pu.quantidade,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             TO_CHAR(pu.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
