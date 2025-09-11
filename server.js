@@ -333,7 +333,7 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
                 pu.quantidade_atribuida_os_conciliacao
             FROM pedido AS p
             JOIN pedido_unidades AS pu ON p.id = pu.pedido_id
-            WHERE p.cnpj_cliente = $1 AND p.concluida = false
+            WHERE p.cnpj_cliente = $1 AND pu.concluida = false
             ORDER BY p.numeropedido DESC, pu.unidade_nome ASC;
         `;
         const pedidosResults = await pool.query(pedidosUnidadesQuery, [cnpjLimpo]);
