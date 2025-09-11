@@ -652,22 +652,13 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
 
 
+// ROTA AJUSTADA PARA VISUALIZAR OS PEDIDOS EM ABERTO (UNIDADES NÃO CONCLUÍDAS)
 app.get('/visualizarpedido', (req, res) => {
-
     const query = `
         SELECT 
-            p.numeropedido, 
-            p.nomecliente, 
-            p.descricao,
-            p.cnpj_cliente,
-            p.quantidadetotal,
-            p.contatoresponsavel,
-            p.nomeresponsavel,
-            TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            c.razao_social,
-            pu.id AS unidade_id, -- ID único da linha da unidade, para usar como "key" no React
-            pu.unidade_nome,
-            pu.quantidade
+            p.numeropedido, p.nomecliente, c.razao_social, p.descricao,
+            pu.unidade_nome, pu.quantidade, pu.id as unidade_id,
+            TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada
         FROM 
             pedido AS p
         INNER JOIN 
@@ -675,20 +666,18 @@ app.get('/visualizarpedido', (req, res) => {
         INNER JOIN 
             cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
-            p.concluida = false
+            pu.concluida = FALSE
         ORDER BY 
-            p.data_inicio DESC, pu.unidade_nome ASC;
+            p.data_inicio DESC;
     `;
-
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar detalhes dos pedidos por unidade:", err);
+            console.error("Erro ao buscar unidades de pedido em aberto:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
         return res.status(200).json(data.rows);
     });
 });
-
 
 
     app.get('/visualizarosproduto', (req, res) => {
@@ -1662,7 +1651,6 @@ app.put('/unidades-concluidas', (req, res) => {
 });
 
 
-// ROTA PARA VISUALIZAR OS PEDIDOS JÁ CONCLUÍDOS (MÉTODO GET)
 // ROTA PARA VISUALIZAR AS UNIDADES DOS PEDIDOS JÁ CONCLUÍDOS (MÉTODO GET)
 app.get('/pedidos-concluidos', (req, res) => {
     const query = `
