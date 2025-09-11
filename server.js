@@ -667,6 +667,7 @@ app.get('/visualizarpedido', (req, res) => {
             cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
             pu.concluida = FALSE
+            
         ORDER BY 
             p.data_inicio DESC;
     `;
@@ -1655,8 +1656,8 @@ app.put('/unidades-concluidas', (req, res) => {
 app.get('/pedidos-concluidos', (req, res) => {
     const query = `
         SELECT 
-            p.numeropedido, p.nomecliente, c.razao_social, pu.unidade_nome AS unidade,
-            p.quantidadetotal, pu.quantidade AS quantidadeatribuida,
+            p.numeropedido, p.nomecliente, c.razao_social, pu.unidade_nome,
+            p.quantidadetotal, pu.quantidade,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
             TO_CHAR(pu.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
         FROM 
