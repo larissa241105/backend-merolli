@@ -1465,8 +1465,6 @@ app.delete('/api/os-conciliacao/:id_os', (req, res) => {
 });
 
 
-
-
     // =================================================================
     // ||                     o.s concluidas                          ||
     // =================================================================
@@ -1635,61 +1633,60 @@ app.get('/os-conciliacao-concluida', (req, res) => {
 
 /////////////////Pedidos Concluidos ///////////////////
 
-// ROTA PARA MARCAR UM OU MAIS PEDIDOS COMO CONCLUÍDOS (MÉTODO PUT)
-app.put('/pedidos-concluidos', (req, res) => {
-    const { ids } = req.body; // Recebe um array de IDs
+// ROTA PARA MARCAR UMA OU MAIS UNIDADES DO PEDIDO COMO CONCLUÍDAS (MÉTODO PUT)
+app.put('/unidades-concluidas', (req, res) => {
+    const { ids } = req.body; // Recebe um array de IDs da tabela 'pedido_unidades'
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ message: "Nenhum ID de pedido fornecido." });
+        return res.status(400).json({ message: "Nenhum ID de unidade de pedido fornecido." });
     }
 
-    // CORREÇÃO 1: Gerar placeholders dinamicamente
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
-    
+
     const query = `
-        UPDATE pedido
+        UPDATE pedido_unidades
         SET concluida = TRUE, data_conclusao = NOW() 
-        WHERE numeropedido IN (${placeholders});
+        WHERE id IN (${placeholders});
     `;
 
     pool.query(query, ids, (err, result) => {
         if (err) {
-            console.error("Erro ao marcar pedidos como concluídos:", err);
+            console.error("Erro ao marcar unidades como concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // CORREÇÃO 2: Usar result.rowCount
         if (result.rowCount === 0) {
-            return res.status(404).json({ message: "Nenhum pedido encontrado com os IDs fornecidos." });
+            return res.status(404).json({ message: "Nenhuma unidade de pedido encontrada com os IDs fornecidos." });
         }
-        return res.status(200).json({ message: "Pedidos marcados como concluídos com sucesso!" });
+        return res.status(200).json({ message: "Unidades marcadas como concluídas com sucesso!" });
     });
 });
 
 
 // ROTA PARA VISUALIZAR OS PEDIDOS JÁ CONCLUÍDOS (MÉTODO GET)
+// ROTA PARA VISUALIZAR AS UNIDADES DOS PEDIDOS JÁ CONCLUÍDOS (MÉTODO GET)
 app.get('/pedidos-concluidos', (req, res) => {
     const query = `
         SELECT 
-            p.numeropedido, p.nomecliente, c.razao_social, p.unidade,
-            p.quantidadetotal, p.quantidadeatribuida,
-            -- CORREÇÃO 1: Usar TO_CHAR em vez de DATE_FORMAT
+            p.numeropedido, p.nomecliente, c.razao_social, pu.unidade_nome AS unidade,
+            p.quantidadetotal, pu.quantidade AS quantidadeatribuida,
             TO_CHAR(p.data_inicio, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            TO_CHAR(p.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
+            TO_CHAR(pu.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada
         FROM 
             pedido AS p
         INNER JOIN 
+            pedido_unidades AS pu ON p.id = pu.pedido_id
+        INNER JOIN 
             cliente AS c ON p.cnpj_cliente = c.cnpj
         WHERE 
-            p.concluida = TRUE
+            pu.concluida = TRUE
         ORDER BY 
-            p.data_conclusao DESC;
+            pu.data_conclusao DESC;
     `;
     pool.query(query, (err, data) => {
         if (err) {
-            console.error("Erro ao buscar pedidos de compra concluídos:", err);
+            console.error("Erro ao buscar unidades de compra concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // CORREÇÃO 2: Usar data.rows
         return res.status(200).json(data.rows);
     });
 });
