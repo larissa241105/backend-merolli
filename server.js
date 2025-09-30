@@ -7,7 +7,7 @@
         const bcrypt = require('bcrypt');
         const { v4: uuidv4 } = require('uuid');
         const app = express();
-        const port = 3001; 
+        const port = process.env.PORT || 3001;
        // =================================================================
         // ||                       MIDDLEWARES                           ||
         // =================================================================
@@ -45,13 +45,13 @@
 
 
 
-       const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: true, // Garante que a verificação de certificado seja obrigatória
-        ca: process.env.DB_CA_CERT, // Fornece o certificado CA para a verificação
-    }
-});
+            const pool = new Pool({
+                connectionString: process.env.DATABASE_URL,
+                ssl: {
+                    rejectUnauthorized: true,
+                    ca: process.env.DB_CA_CERT, // <-- Linha essencial
+                }
+            });
 
         pool.query('SELECT NOW()', (err, res) => {
             if (err) {
@@ -59,6 +59,10 @@
             } else {
                 console.log('Conectado com sucesso ao banco de dados PostgreSQL.');
             }
+        });
+
+                app.get('/', (req, res) => {
+        res.status(200).send('Backend API is running!');
         });
 
         app.listen(port, () => {
