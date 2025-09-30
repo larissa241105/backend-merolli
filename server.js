@@ -45,9 +45,13 @@
 
 
 
-        const pool = new Pool({
-            connectionString: process.env.DATABASE_URL
-        });
+       const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: true, // Garante que a verificação de certificado seja obrigatória
+        ca: process.env.DB_CA_CERT, // Fornece o certificado CA para a verificação
+    }
+});
 
         pool.query('SELECT NOW()', (err, res) => {
             if (err) {
