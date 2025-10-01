@@ -66,10 +66,6 @@
         res.status(200).send('Backend API is running!');
         });
 
-        app.listen(port, () => {
-            console.log(`Servidor rodando na porta ${port}`);
-        });
-
 
     // =================================================================
     // ||                      ROTA DE LOGIN (SEGURA)                 ||
