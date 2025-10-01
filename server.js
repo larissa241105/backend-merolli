@@ -1,3 +1,5 @@
+        console.log("--- EXECUTANDO VERSÃO DO CÓDIGO CORRIGIDO EM 01/10 ---"); 
+        
         // =================================================================
         // ||                       DEPENDÊNCIAS                        ||
         // =================================================================
@@ -51,7 +53,7 @@
                 rejectUnauthorized: false
             }
         });
-        
+
         pool.query('SELECT NOW()', (err, res) => {
             if (err) {
                 console.error('Erro ao conectar ao banco de dados PostgreSQL:', err);
