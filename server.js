@@ -24,7 +24,6 @@
             'http://localhost:5173'  // Para desenvolvimento local (se usar Vite)
         ];
 
-      // No seu arquivo server.js
 
         const corsOptions = {
             origin: function (origin, callback) {
@@ -65,7 +64,7 @@
             }
         });
 
-                app.get('/', (req, res) => {
+        app.get('/', (req, res) => {
         res.status(200).send('Backend API is running!');
         });
 
@@ -73,7 +72,7 @@
     // =================================================================
     // ||                      ROTA DE LOGIN (SEGURA)                 ||
     // =================================================================
-app.post('/api/login/analista', (req, res) => {
+    app.post('/api/login/analista', (req, res) => {
     const { usuario, senha } = req.body;
 
     if (!usuario || !senha) {
@@ -112,8 +111,8 @@ app.post('/api/login/analista', (req, res) => {
             console.error("Erro ao comparar senhas:", compareError);
             return res.status(500).json({ message: 'Erro de segurança interno.' });
         }
+        });
     });
-});
     // =================================================================
     // ||                   ROTAS DE CADASTRO (SEGURAS)               ||
     // =================================================================
@@ -139,7 +138,7 @@ app.post('/api/login/analista', (req, res) => {
             res.status(201).json({ message: 'Auxiliar cadastrado com sucesso!' });
         });
     } catch (e) { res.status(500).json({ message: 'Erro ao processar senha.' }) }
-});
+    });
 
     
    app.post('/cadastro-analista', async (req, res) => {
@@ -162,7 +161,7 @@ app.post('/api/login/analista', (req, res) => {
             res.status(201).json({ message: 'Analista cadastrado com sucesso!' });
         });
     } catch (e) { res.status(500).json({ message: 'Erro ao processar senha.' }) }
-});
+    });
 
 
     app.post('/cadastro-cliente', async (req, res) => {
@@ -185,7 +184,7 @@ app.post('/api/login/analista', (req, res) => {
             res.status(201).json({ message: 'Cliente cadastrado com sucesso!' });
         });
     } catch (e) { res.status(500).json({ message: 'Erro ao processar senha.' }) }
-});
+    }); 
 
 
 
@@ -194,25 +193,25 @@ app.post('/api/login/analista', (req, res) => {
     // ||                  ROTAS DE NEGÓCIO (PEDIDOS, OS)             ||
     // =================================================================
 
-app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
-    const { cnpj } = req.params;
-    const query = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = $1';
-    
-    pool.query(query, [cnpj.replace(/\D/g, '')], (err, results) => {
-        if (err) {
-            return res.status(500).json({ message: 'Erro no servidor.' });
-        }
+    app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
+        const { cnpj } = req.params;
+        const query = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = $1';
         
-        // CORRIGIDO: Verifique o tamanho de 'results.rows'
-        if (results.rows.length > 0) { 
-            // CORRIGIDO: Retorne o primeiro item de 'results.rows'
+        pool.query(query, [cnpj.replace(/\D/g, '')], (err, results) => {
+            if (err) {
+                return res.status(500).json({ message: 'Erro no servidor.' });
+            }
+            
+            // CORRIGIDO: Verifique o tamanho de 'results.rows'
+            if (results.rows.length > 0) { 
+                // CORRIGIDO: Retorne o primeiro item de 'results.rows'
 
-            return res.status(200).json(results.rows[0]); 
-        }
-        
-        res.status(404).json({ message: 'Cliente não encontrado.' });
+                return res.status(200).json(results.rows[0]); 
+            }
+            
+            res.status(404).json({ message: 'Cliente não encontrado.' });
+        });
     });
-});
 
    app.get('/api/auxiliares', (req, res) => {
     const query = 'SELECT id, nome, cpf FROM auxiliar ORDER BY nome ASC'; 
@@ -225,11 +224,11 @@ app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         // CORREÇÃO: Usar .json(results.rows)
         res.status(200).json(results.rows);
     });
-});
+    });
 
 
 
-app.post('/api/pedidos', async (req, res) => {
+    app.post('/api/pedidos', async (req, res) => {
     const { 
         cliente, 
         cnpj_cliente, 
@@ -305,7 +304,7 @@ app.post('/api/pedidos', async (req, res) => {
     } finally {
         client.release(); // Libera a conexão de volta para o pool
     }
-});
+    });
 
 
 
@@ -706,7 +705,7 @@ app.get('/visualizarpedido', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = '0' -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
@@ -740,7 +739,7 @@ app.get('/visualizarosdados', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = '0' -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
@@ -772,7 +771,7 @@ app.get('/visualizarosconciliacao', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = '0' -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
@@ -1615,7 +1614,7 @@ app.get('/os-conciliacao-concluida', (req, res) => {
         INNER JOIN 
             cliente AS c ON od.cnpj_cliente = c.cnpj
         WHERE 
-            od.concluida = TRUE 
+            od.concluida = true 
         ORDER BY od.data_conclusao DESC;
     `;
     pool.query(query, (err, data) => {
@@ -1700,3 +1699,5 @@ app.get('/pedidos-concluidos', (req, res) => {
     app.listen(port, () => {
         console.log(`Servidor backend rodando na porta ${port}`);
     });
+
+    
