@@ -324,8 +324,6 @@ app.get('/api/clientes/details-and-orders/:cnpj', async (req, res) => {
         }
         responseData.cliente = clienteResults.rows[0];
 
-        // A QUERY INTELIGENTE QUE CALCULA TUDO EM TEMPO REAL
-        // Assumindo que você tenha as tabelas 'os_produto', 'os_dados' e 'os_conciliacao'
           const pedidosUnidadesQuery = `
             SELECT 
                 p.numeropedido,
@@ -392,8 +390,8 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 INSERT INTO os_produto (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
                     unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
-                    quantidade_itens, descricao, pedido_unidade_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    quantidade_itens, descricao, pedido_unidade_id, concluida
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             `;
             const values = [
                 idAgrupador, // Usando a variável definida acima
@@ -407,7 +405,8 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cleanCpf,
                 parseInt(quantidadeItens, 10), 
                 descricao, 
-                pedidoUnidadeId
+                pedidoUnidadeId, 
+                false
             ];
             
             return client.query(query, values);
@@ -482,8 +481,8 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 INSERT INTO os_dados (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
                     unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
-                    quantidade_itens, descricao, pedido_unidade_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    quantidade_itens, descricao, pedido_unidade_id, concluida
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             `;
             const values = [
                 idAgrupador, // Usando a variável definida acima
@@ -497,7 +496,8 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cleanCpf,
                 parseInt(quantidadeItens, 10), 
                 descricao, 
-                pedidoUnidadeId
+                pedidoUnidadeId, 
+                false
             ];
             
             return client.query(query, values);
@@ -566,13 +566,12 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
             const numero_os = `${numeroPedidoSelecionado}_00${idAuxiliarSelecionado}`;
             const cleanCpf = cpfAuxiliar ? cpfAuxiliar.replace(/\D/g, '') : null;
-            
-            const query = `
+           const query = `
                 INSERT INTO os_conciliacao (
                     id_agrupador_os, numero_os, numero_pedido_origem, cnpj_cliente, nome_cliente, 
                     unidade_cliente, quantidade_auxiliar_os, nome_auxiliar, cpf_auxiliar, 
-                    quantidade_itens, descricao, pedido_unidade_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    quantidade_itens, descricao, pedido_unidade_id, concluida
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             `;
             const values = [
                 idAgrupador, // Usando a variável definida acima
@@ -586,7 +585,8 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
                 cleanCpf,
                 parseInt(quantidadeItens, 10), 
                 descricao, 
-                pedidoUnidadeId
+                pedidoUnidadeId, 
+                false
             ];
             
             return client.query(query, values);
