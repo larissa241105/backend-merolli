@@ -705,7 +705,7 @@ app.get('/visualizarpedido', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false 
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
@@ -739,7 +739,7 @@ app.get('/visualizarosdados', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false 
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
@@ -771,7 +771,7 @@ app.get('/visualizarosconciliacao', (req, res) => {
     INNER JOIN 
         cliente AS c ON od.cnpj_cliente = c.cnpj
     WHERE 
-        od.concluida = false -- CORREÇÃO: Comparando com '0' (VARCHAR) como definido no seu banco
+        od.concluida = false
     ORDER BY od.id_os DESC
 `;
     pool.query(query, (err, data) => {
