@@ -1243,7 +1243,7 @@ app.delete('/api/os-produto/:id', async (req, res) => {
         // 5. Confirma a transação, pois tudo deu certo
         await client.query('COMMIT');
 
-        res.status(200).json({ message: "Ordem de Serviço excluída e quantidade devolvida com sucesso!" });
+        res.status(200).json({ message: "Ordem de Serviço excluída com sucesso!" });
 
     } catch (err) {
         // Em caso de qualquer erro, desfaz tudo
@@ -1437,40 +1437,111 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
 
 
 
-app.delete('/api/os-dados/:id_os', (req, res) => {
-    const { id_os } = req.params;
-    const query = 'DELETE FROM os_dados WHERE id_os = $1';
+app.delete('/api/os-dados/:id', async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect(); // Pega uma conexão do pool
 
-    pool.query(query, [id_os], (err, result) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor ao deletar a OS." });
-        }
-        // CORREÇÃO: Usar result.rowCount
-        if (result.rowCount === 0) {
+    try {
+        // 1. Inicia a transação
+        await client.query('BEGIN');
+
+        // 2. Busca os dados da OS antes de deletar
+        const selectQuery = 'SELECT quantidade_itens, pedido_unidade_id FROM os_dados WHERE id_os = $1';
+        const osResult = await client.query(selectQuery, [id]);
+
+        if (osResult.rows.length === 0) {
+            // Se a OS não existe, desfaz a transação e retorna erro
+            await client.query('ROLLBACK');
             return res.status(404).json({ message: "Ordem de Serviço não encontrada." });
         }
-        res.status(200).json({ message: 'Ordem de Serviço deletada com sucesso!' });
-    });
+
+        const osParaExcluir = osResult.rows[0];
+        const quantidadeParaDevolver = osParaExcluir.quantidade_itens;
+        const unidadeId = osParaExcluir.pedido_unidade_id;
+
+        // 3. Devolve a quantidade para a tabela 'pedido_unidades'
+        const updateQuery = `
+            UPDATE pedido_unidades 
+            SET quantidade_atribuida_os_dados = quantidade_atribuida_os_dados - $1
+            WHERE id = $2;
+        `;
+        await client.query(updateQuery, [quantidadeParaDevolver, unidadeId]);
+
+        // 4. Exclui a OS da tabela 'os_produto'
+        const deleteQuery = 'DELETE FROM os_dados WHERE id_os = $1';
+        await client.query(deleteQuery, [id]);
+
+        // 5. Confirma a transação, pois tudo deu certo
+        await client.query('COMMIT');
+
+        res.status(200).json({ message: "Ordem de Serviço excluída com sucesso!" });
+
+    } catch (err) {
+        // Em caso de qualquer erro, desfaz tudo
+        await client.query('ROLLBACK');
+        console.error("Erro ao excluir a O.S. (ROLLBACK realizado):", err);
+        res.status(500).json({ message: "Erro interno no servidor." });
+
+    } finally {
+        // Garante que a conexão seja liberada de volta para o pool
+        client.release();
+    }
 });
 
-app.delete('/api/os-conciliacao/:id_os', (req, res) => {
-    const { id_os } = req.params;
-    const query = 'DELETE FROM os_conciliacao WHERE id_os = $1';
+app.delete('/api/os-conciliacao/:id', async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect(); // Pega uma conexão do pool
 
-    pool.query(query, [id_os], (err, result) => {
-        if (err) {
-            return res.status(500).json({ message: "Erro interno no servidor ao deletar a OS." });
-        }
-        // CORREÇÃO: Usar result.rowCount
-        if (result.rowCount === 0) {
+    try {
+        // 1. Inicia a transação
+        await client.query('BEGIN');
+
+        // 2. Busca os dados da OS antes de deletar
+        const selectQuery = 'SELECT quantidade_itens, pedido_unidade_id FROM os_conciliacao WHERE id_os = $1';
+        const osResult = await client.query(selectQuery, [id]);
+
+        if (osResult.rows.length === 0) {
+            // Se a OS não existe, desfaz a transação e retorna erro
+            await client.query('ROLLBACK');
             return res.status(404).json({ message: "Ordem de Serviço não encontrada." });
         }
-        res.status(200).json({ message: 'Ordem de Serviço deletada com sucesso!' });
-    });
+
+        const osParaExcluir = osResult.rows[0];
+        const quantidadeParaDevolver = osParaExcluir.quantidade_itens;
+        const unidadeId = osParaExcluir.pedido_unidade_id;
+
+        // 3. Devolve a quantidade para a tabela 'pedido_unidades'
+        const updateQuery = `
+            UPDATE pedido_unidades 
+            SET quantidade_atribuida_os_conciliacao = quantidade_atribuida_os_conciliacao - $1
+            WHERE id = $2;
+        `;
+        await client.query(updateQuery, [quantidadeParaDevolver, unidadeId]);
+
+        // 4. Exclui a OS da tabela 'os_produto'
+        const deleteQuery = 'DELETE FROM os_conciliacao WHERE id_os = $1';
+        await client.query(deleteQuery, [id]);
+
+        // 5. Confirma a transação, pois tudo deu certo
+        await client.query('COMMIT');
+
+        res.status(200).json({ message: "Ordem de Serviço excluída com sucesso!" });
+
+    } catch (err) {
+        // Em caso de qualquer erro, desfaz tudo
+        await client.query('ROLLBACK');
+        console.error("Erro ao excluir a O.S. (ROLLBACK realizado):", err);
+        res.status(500).json({ message: "Erro interno no servidor." });
+
+    } finally {
+        // Garante que a conexão seja liberada de volta para o pool
+        client.release();
+    }
 });
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 
 
