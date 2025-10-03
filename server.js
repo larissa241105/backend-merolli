@@ -1547,12 +1547,13 @@ app.put('/os-dados-concluida', (req, res) => {
 app.get('/os-dados-concluida', (req, res) => {
     const query = `
         SELECT 
-            od.id_os, od.nome_cliente, c.razao_social,
-                        od.cnpj_cliente,
-
+             od.id_os, od.numero_os,
+            od.nome_cliente, c.razao_social,
+            od.cnpj_cliente,
             od.quantidade_auxiliar_os, od.quantidade_itens, od.descricao,
-            -- CORREÇÃO 1: Usar TO_CHAR em vez de DATE_FORMAT
+            -- CORREÇÃO 1: Usar TO_CHAR no lugar de DATE_FORMAT
             TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada,
+            TO_CHAR(od.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada 
             TO_CHAR(od.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada 
         FROM 
             os_dados AS od
