@@ -1551,9 +1551,7 @@ app.get('/os-dados-concluida', (req, res) => {
             od.nome_cliente, c.razao_social,
             od.cnpj_cliente,
             od.quantidade_auxiliar_os, od.quantidade_itens, od.descricao,
-            -- CORREÇÃO 1: Usar TO_CHAR no lugar de DATE_FORMAT
             TO_CHAR(od.data_criacao, 'DD/MM/YYYY HH24:MI') AS data_formatada,
-            TO_CHAR(od.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada 
             TO_CHAR(od.data_conclusao, 'DD/MM/YYYY HH24:MI') AS data_conclusao_formatada 
         FROM 
             os_dados AS od
@@ -1568,7 +1566,7 @@ app.get('/os-dados-concluida', (req, res) => {
             console.error("Erro ao buscar O.S. de dados concluídas:", err);
             return res.status(500).json({ message: "Erro interno no servidor." });
         }
-        // CORREÇÃO 2: Usar data.rows
+       
         return res.status(200).json(data.rows);
     });
 });
