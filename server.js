@@ -1802,9 +1802,4 @@ app.get('/pedidos-concluidos', (req, res) => {
         console.log(`Servidor backend rodando na porta ${port}`);
     });
 
-    
-
-console.log("Minha nova feature local");
-
-console.log("Novo código do GitHub");
 
