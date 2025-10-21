@@ -23,6 +23,7 @@
             'http://localhost:3000', // Para desenvolvimento local (se usar a porta 3000)
             'http://localhost:5173',  // Para desenvolvimento local (se usar Vite)
             'http://localhost:8081',
+            'http://192.168.68.108:3001'
         ];
 
 
