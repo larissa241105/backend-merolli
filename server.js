@@ -1810,7 +1810,9 @@ app.get('/pedidos-concluidos', (req, res) => {
 
 // POST /api/inventario - Rota para cadastrar um novo item de inventário
 app.post('/api/inventario', async (req, res) => {
-    // 1. Extrai os dados do corpo da requisição
+
+    console.log('Corpo da Requisição Recebida:', req.body);
+    
     const {
         osId, // ID da OS para fazer a ligação
         tagCliente,
