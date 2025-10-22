@@ -193,6 +193,22 @@
     // ||                  ROTAS DE NEGÓCIO (PEDIDOS, OS)             ||
     // =================================================================
 
+
+
+// GET /api/clientes - Rota para listar todos os clientes
+app.get('/api/clientes', async (req, res) => {
+    try {
+        const query = 'SELECT cnpj, nome_fantasia FROM cliente ORDER BY nome_fantasia ASC';
+        const results = await pool.query(query);
+        res.status(200).json(results.rows);
+    } catch (err) {
+        console.error('Erro ao buscar a lista de clientes:', err);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+});
+
+
+
     app.get('/api/clientes/cnpj/:cnpj', (req, res) => {
         const { cnpj } = req.params;
         const query = 'SELECT razao_social, nome_fantasia FROM cliente WHERE cnpj = $1';
@@ -1198,7 +1214,7 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
             }
             return res.status(500).json({ message: 'Erro interno ao atualizar a Ordem de Serviço.', error: err });
         }
-        // CORREÇÃO 2: Usar result.rowCount
+
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Ordem de Serviço não encontrada.' });
         }
@@ -1208,18 +1224,17 @@ app.put('/api/pedidos/:numeropedido', (req, res) => {
 
 app.delete('/api/os-produto/:id', async (req, res) => {
     const { id } = req.params;
-    const client = await pool.connect(); // Pega uma conexão do pool
+    const client = await pool.connect(); 
 
     try {
-        // 1. Inicia a transação
+
         await client.query('BEGIN');
 
-        // 2. Busca os dados da OS antes de deletar
         const selectQuery = 'SELECT quantidade_itens, pedido_unidade_id FROM os_produto WHERE id_os = $1';
         const osResult = await client.query(selectQuery, [id]);
 
         if (osResult.rows.length === 0) {
-            // Se a OS não existe, desfaz a transação e retorna erro
+
             await client.query('ROLLBACK');
             return res.status(404).json({ message: "Ordem de Serviço não encontrada." });
         }
@@ -1228,7 +1243,7 @@ app.delete('/api/os-produto/:id', async (req, res) => {
         const quantidadeParaDevolver = osParaExcluir.quantidade_itens;
         const unidadeId = osParaExcluir.pedido_unidade_id;
 
-        // 3. Devolve a quantidade para a tabela 'pedido_unidades'
+
         const updateQuery = `
             UPDATE pedido_unidades 
             SET quantidade_atribuida_os = quantidade_atribuida_os - $1
@@ -1236,11 +1251,11 @@ app.delete('/api/os-produto/:id', async (req, res) => {
         `;
         await client.query(updateQuery, [quantidadeParaDevolver, unidadeId]);
 
-        // 4. Exclui a OS da tabela 'os_produto'
+
         const deleteQuery = 'DELETE FROM os_produto WHERE id_os = $1';
         await client.query(deleteQuery, [id]);
 
-        // 5. Confirma a transação, pois tudo deu certo
+
         await client.query('COMMIT');
 
         res.status(200).json({ message: "Ordem de Serviço excluída com sucesso!" });
@@ -1345,7 +1360,6 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
     pool.query(query, values, (err, result) => {
         if (err) {
             console.error("Erro ao atualizar O.S. de Dados:", err);
-            // CORREÇÃO 1: Usar os códigos de erro do PostgreSQL
             if (err.code === '23505') {
                 return res.status(409).json({ message: `O número de O.S. '${novo_numero_os}' já existe.` });
             }
@@ -1355,7 +1369,6 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
             return res.status(500).json({ message: 'Erro interno ao atualizar a Ordem de Serviço.', error: err });
         }
 
-        // CORREÇÃO 2: Usar result.rowCount
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Ordem de Serviço não encontrada.' });
         }
@@ -1363,9 +1376,7 @@ app.get('/api/os-conciliacao/:id_os', (req, res) => {
     });
 });
 
-
-    // ROTA PUT PARA ATUALIZAR UMA ORDEM DE SERVIÇO DE CONCILIAÇÃO
-       app.put('/api/os-conciliacao/:id_os', (req, res) => {
+    app.put('/api/os-conciliacao/:id_os', (req, res) => {
     const { id_os } = req.params;
     
     const { 
