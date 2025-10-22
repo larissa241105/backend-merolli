@@ -672,7 +672,6 @@ app.post('/api/os-produto/fracionado', async (req, res) => {
 
 
 
-// ROTA AJUSTADA PARA VISUALIZAR OS PEDIDOS EM ABERTO (UNIDADES NÃO CONCLUÍDAS)
 app.get('/visualizarpedido', (req, res) => {
     const query = `
         SELECT 
@@ -1802,6 +1801,68 @@ app.get('/pedidos-concluidos', (req, res) => {
         return res.status(200).json(data.rows);
     });
 });
+
+
+    // =================================================================
+    // ||                      INVENTÁRIO                             ||
+    // =================================================================
+
+
+// POST /api/inventario - Rota para cadastrar um novo item de inventário
+app.post('/api/inventario', async (req, res) => {
+    // 1. Extrai os dados do corpo da requisição
+    const {
+        osId, // ID da OS para fazer a ligação
+        tagCliente,
+        nossaTag,
+        nomeCliente,
+        setor,
+        nomeColaborador,
+        familia,
+        tipo,
+        descricao,
+        marca,
+        modelo,
+        numeroSerie,
+        imei1,
+        imei2,
+        statusProduto
+    } = req.body;
+
+    // 2. Validação básica
+    if (!osId || !nossaTag || !nomeCliente) {
+        return res.status(400).json({ message: 'Dados essenciais (OS, Nossa Tag, Cliente) são obrigatórios.' });
+    }
+
+    // 3. Query SQL para inserir os dados
+    const query = `
+        INSERT INTO inventario (
+            os_id, tag_cliente, nossa_tag, nome_cliente, setor, nome_colaborador, 
+            familia, tipo, descricao, marca, modelo, numero_serie, imei1, imei2, status_produto
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        ) RETURNING *; 
+    `;
+
+    const values = [
+        osId, tagCliente, nossaTag, nomeCliente, setor, nomeColaborador, familia, 
+        tipo, descricao, marca, modelo, numeroSerie, imei1, imei2, statusProduto
+    ];
+
+    try {
+        const result = await pool.query(query, values);
+        res.status(201).json({ 
+            message: 'Item de inventário cadastrado com sucesso!', 
+            item: result.rows[0] 
+        });
+    } catch (err) {
+        console.error("Erro ao cadastrar item de inventário:", err);
+        res.status(500).json({ message: "Erro interno no servidor." });
+    }
+});
+
+
+
 
 
     module.exports = pool;
