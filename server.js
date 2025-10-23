@@ -1814,7 +1814,7 @@ app.post('/api/inventario', async (req, res) => {
     console.log('Corpo da Requisição Recebida:', req.body);
     
     const {
-        pedido_id,
+
         osId, // ID da OS para fazer a ligação
         tagCliente,
         nossaTag,
@@ -1840,15 +1840,15 @@ app.post('/api/inventario', async (req, res) => {
     // 3. Query SQL para inserir os dados
     const query = `
         INSERT INTO inventario (
-            pedido_id, os_id, tag_cliente, nossa_tag, nome_cliente, setor, nome_colaborador, 
+            os_id, tag_cliente, nossa_tag, nome_cliente, setor, nome_colaborador, 
             familia, tipo, descricao, marca, modelo, numero_serie, imei1, imei2, status_produto
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
         ) RETURNING *; 
     `;
 
     const values = [
-        pedido_id, osId, tagCliente, nossaTag, nomeCliente, setor, nomeColaborador, familia, 
+        osId, tagCliente, nossaTag, nomeCliente, setor, nomeColaborador, familia, 
         tipo, descricao, marca, modelo, numeroSerie, imei1, imei2, statusProduto
     ];
 
